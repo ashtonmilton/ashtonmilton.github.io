@@ -1,0 +1,58 @@
+{% set titleTag = metaTitle or (title + " | " + site.author) %}
+{% set metaDescription = description or site.description %}
+{% set canonicalUrl = site.url + page.url %}
+{% set socialImage = site.url + site.image %}
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ titleTag | escape }}</title>
+  <meta name="description" content="{{ metaDescription | escape }}" />
+  {% if robots %}<meta name="robots" content="{{ robots }}" />{% elif noindex %}<meta name="robots" content="noindex" />{% endif %}
+  <meta name="author" content="{{ site.author }}" />
+  <meta name="theme-color" content="{{ site.themeColor }}" />
+  <link rel="canonical" href="{{ canonicalUrl }}" />
+  <meta property="og:type" content="{{ ogType or 'website' }}" />
+  <meta property="og:url" content="{{ canonicalUrl }}" />
+  <meta property="og:site_name" content="{{ site.name | escape }}" />
+  <meta property="og:locale" content="en_GB" />
+  <meta property="og:title" content="{{ titleTag | escape }}" />
+  <meta property="og:description" content="{{ metaDescription | escape }}" />
+  <meta property="og:image" content="{{ socialImage }}" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="{{ titleTag | escape }}" />
+  <meta name="twitter:description" content="{{ metaDescription | escape }}" />
+  <meta name="twitter:image" content="{{ socialImage }}" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  {% if ogType == "article" and category %}
+  <meta property="article:section" content="{{ category | escape }}" />
+  {% endif %}
+  {% if ogType == "article" and tags %}
+  {% for tag in tags %}
+  <meta property="article:tag" content="{{ tag | escape }}" />
+  {% endfor %}
+  {% endif %}
+  <link rel="stylesheet" href="/assets/css/site.css" />
+  {% if preloadHero %}
+  <link rel="preload" as="image" href="{{ site.image }}" />
+  {% endif %}
+  {% if not noindex %}{% include "structured-data.njk" %}{% endif %}
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  {% include "nav.njk" %}
+
+  <main id="main">
+{{ content | safe }}
+  </main>
+
+  {% include "footer.njk" %}
+  {% if scripts %}
+  {% for script in scripts %}
+  <script src="{{ script }}"></script>
+  {% endfor %}
+  {% endif %}
+</body>
+</html>

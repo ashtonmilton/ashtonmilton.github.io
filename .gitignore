@@ -1,0 +1,11 @@
+.DS_Store
+node_modules/
+_site/
+.site-backups/
+.pnpm-store/
+editorial/
+output/
+tmp/
+.env
+.env.*
+*.zip

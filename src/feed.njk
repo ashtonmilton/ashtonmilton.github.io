@@ -1,0 +1,23 @@
+---
+permalink: /feed.xml
+eleventyExcludeFromCollections: true
+sitemap: false
+---
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Writing &amp; Essays | Ashton Milton</title>
+  <subtitle>{{ site.description | escape }}</subtitle>
+  <link href="{{ site.url }}/feed.xml" rel="self" />
+  <link href="{{ site.url }}/writing/" />
+  <id>{{ site.url }}/writing/</id>
+  <updated>{{ site.feedUpdated }}</updated>
+{% for essay in collections.datedEssays %}
+  <entry>
+    <title>{{ essay.data.title | escape }}</title>
+    <link href="{{ (site.url + essay.url) | escape }}" />
+    <id>{{ (site.url + essay.url) | escape }}</id>
+    <updated>{{ essay.data.date | dateToRfc3339 }}</updated>
+    <summary>{{ essay.data.description | escape }}</summary>
+  </entry>
+{% endfor %}
+</feed>

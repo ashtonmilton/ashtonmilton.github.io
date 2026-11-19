@@ -1,0 +1,61 @@
+{% set personId = site.url + "/#person" %}
+{% set websiteId = site.url + "/#website" %}
+{% set webpageId = canonicalUrl + "#webpage" %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Person",
+      "@id": {{ personId | json | safe }},
+      "name": {{ site.author | json | safe }},
+      "url": {{ (site.url + "/about/") | json | safe }},
+      "description": {{ site.description | json | safe }},
+      {% if site.sameAs.length %}"sameAs": {{ site.sameAs | json | safe }},{% endif %}
+      "knowsAbout": {{ site.topics | json | safe }}
+    },
+    {% if page.url == "/" %}
+    {
+      "@type": "WebSite",
+      "@id": {{ websiteId | json | safe }},
+      "url": {{ (site.url + "/") | json | safe }},
+      "name": {{ site.name | json | safe }},
+      "description": {{ site.description | json | safe }},
+      "inLanguage": "en-GB",
+      "publisher": { "@id": {{ personId | json | safe }} }
+    },
+    {% endif %}
+    {
+      "@type": {% if navKey == "about" %}"ProfilePage"{% else %}"WebPage"{% endif %},
+      "@id": {{ webpageId | json | safe }},
+      "url": {{ canonicalUrl | json | safe }},
+      "name": {{ titleTag | json | safe }},
+      "description": {{ metaDescription | json | safe }},
+      "inLanguage": "en-GB",
+      "isPartOf": { "@id": {{ websiteId | json | safe }} },
+      "mainEntity": { "@id": {% if ogType == "article" %}{{ (canonicalUrl + "#article") | json | safe }}{% else %}{{ personId | json | safe }}{% endif %} }
+    }
+    {% if ogType == "article" %},
+    {
+      "@type": "Article",
+      "@id": {{ (canonicalUrl + "#article") | json | safe }},
+      "headline": {{ title | json | safe }},
+      "description": {{ metaDescription | json | safe }},
+      "author": {
+        "@type": "Person",
+        "@id": {{ personId | json | safe }},
+        "name": {{ site.author | json | safe }},
+        "url": {{ (site.url + "/about/") | json | safe }}
+      },
+      "mainEntityOfPage": { "@id": {{ webpageId | json | safe }} },
+      "url": {{ canonicalUrl | json | safe }},
+      "inLanguage": "en-GB",
+      {% if date and (page.inputPath | hasFrontMatterDate) %}"datePublished": {{ date | dateToIso | json | safe }},{% endif %}
+      {% if lastmod %}"dateModified": {{ lastmod | json | safe }},{% endif %}
+      "articleSection": {{ category | json | safe }},
+      "keywords": {{ tags | json | safe }}
+    }
+    {% endif %}
+  ]
+}
+</script>

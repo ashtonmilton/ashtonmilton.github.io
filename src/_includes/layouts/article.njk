@@ -1,0 +1,28 @@
+---
+layout: layouts/base.njk
+ogType: article
+navKey: writing
+---
+    <div class="page active">
+      <article class="essay-view" data-category="{{ category }}">
+        <a class="button" href="/writing/">Back to Writing</a>
+        <br><br>
+        <div class="essay-meta">
+          By <a rel="author" href="/about/">{{ site.author }}</a> •
+          {{ category }}{% if status and status != "published" %} • {{ status }}{% endif %}{% if readingTime %} • {{ readingTime }}{% endif %}
+        </div>
+        <h1>{{ title }}</h1>
+        <p class="lede">{{ summary }}</p>
+        {% if tags %}
+        <div class="tag-row">
+          {% for tag in tags %}
+          <span class="tag">{{ tag }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if category == "Selected academic work" %}<p class="academic-disclosure">Substantially revised from undergraduate sociology coursework. This is selected academic work, not peer-reviewed research.</p>{% endif %}
+        <div class="essay-content">
+{{ content | safe }}
+        </div>
+      </article>
+    </div>

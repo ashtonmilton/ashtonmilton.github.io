@@ -1,0 +1,15 @@
+{
+  "name": "ashtonmilton-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static personal publication hub for Ashton Milton.",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "build": "node ./node_modules/@11ty/eleventy/cmd.cjs",
+    "serve": "node ./node_modules/@11ty/eleventy/cmd.cjs --serve",
+    "clean": "rm -rf _site"
+  },
+  "devDependencies": {
+    "@11ty/eleventy": "^3.1.2"
+  }
+}
