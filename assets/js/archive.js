@@ -2,8 +2,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const filterButtons = document.querySelectorAll("[data-filter]");
   const cards = document.querySelectorAll("[data-category]");
   const emptyState = document.querySelector("[data-empty-state]");
+  const tools = document.querySelector(".archive-tools");
 
   if (!filterButtons.length || !cards.length) return;
+  tools.hidden = false;
 
   filterButtons.forEach((button) => {
     button.addEventListener("click", () => {

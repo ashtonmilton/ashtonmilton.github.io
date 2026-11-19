@@ -31,7 +31,9 @@ Set `ashtonmilton.net` as the custom domain in repository Pages settings before 
 
 For a new essay, follow an existing article’s structure. Supply a unique permalink, title, metaTitle, description, summary, category and tags. Supported category values are exactly `Independent work`, `Essays & reflections` and `Selected academic work`. Use `status: published` only for completed public work.
 
-Reading time is manually maintained at approximately 220 words per minute, excluding references. The order field controls archive ordering. Exactly three essays should have `featured: true` for the homepage. Keep existing permalinks unless a redirect is planned.
+Reading time is manually maintained at approximately 220 words per minute, excluding references. The order field controls archive ordering. The homepage leads with the policy perspective configured through `homeFeature` in `src/policy-analysis.njk`; the first two essays with `featured: true`, in archive order, provide the supporting pieces. Keep existing permalinks unless a redirect is planned.
+
+The base layout loads `assets/css/site.css` and `assets/css/publication.css` on every page, including articles and the 404 page. Writing categories share cream labels, neutral dividers and muted metadata. Gold underlines indicate selection, and gold outlines indicate keyboard focus; do not assign separate colours to individual categories. Navigation-style actions use plain underlined links rather than filled boxes.
 
 Use lastmod only for a genuine modification date. Add date only for a real publication date; undated work is deliberately excluded from the feed. Do not leave a blank date field. There is no private draft workflow: a draft inside the source input may still produce a public page. A public repository exposes its files even when Eleventy does not render them. Keep private material outside the repository.
 

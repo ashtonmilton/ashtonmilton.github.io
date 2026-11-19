@@ -8,25 +8,34 @@ lastmod: "2026-11-16"
 sitemapOrder: 2
 scripts: ["/assets/js/archive.js"]
 ---
-<div class="page active"><section>
-<div class="section-header"><h1 class="page-title">Writing</h1><div class="editorial-copy"><p>Independent essays on politics, inequality and public institutions, alongside reflections on urban life and selected academic work.</p></div></div>
-<div class="archive-tools" aria-label="All writing">
-<button class="filter-button active" type="button" data-filter="all" aria-pressed="true">All writing</button>
-<button class="filter-button" type="button" data-filter="Independent work" aria-pressed="false">Independent Work</button>
-<button class="filter-button" type="button" data-filter="Essays &amp; reflections" aria-pressed="false">Essays &amp; reflections</button>
-<button class="filter-button" type="button" data-filter="Selected academic work" aria-pressed="false">Selected academic work</button>
+<header class="page-masthead">
+  <div class="wrap masthead-inner">
+    <h1>Writing</h1>
+    <p>Independent essays on politics, inequality and public institutions, alongside reflections on urban life and selected academic work.</p>
+  </div>
+</header>
+<div class="wrap archive-layout">
+  <div class="archive-tools" role="group" aria-label="Writing categories" hidden>
+    <button class="filter-button active" type="button" data-filter="all" aria-pressed="true">All Writing</button>
+    <button class="filter-button" type="button" data-filter="Independent work" aria-pressed="false">Independent Work</button>
+    <button class="filter-button" type="button" data-filter="Essays &amp; reflections" aria-pressed="false">Essays &amp; Reflections</button>
+    <button class="filter-button" type="button" data-filter="Selected academic work" aria-pressed="false">Selected Academic Work</button>
+  </div>
+  <div class="archive-results">
+    {% for category in ["Independent work", "Essays & reflections", "Selected academic work"] %}
+    <section class="archive-group" data-archive-group>
+      <h2>{% if category == "Independent work" %}Independent Work{% elif category == "Essays & reflections" %}Essays &amp; Reflections{% else %}Selected Academic Work{% endif %}</h2>
+      {% if category == "Selected academic work" %}<p class="academic-disclosure">Substantially revised from undergraduate sociology coursework; not peer-reviewed research.</p>{% endif %}
+      {% for essay in collections.essays %}{% if essay.data.category == category %}
+      <a class="writing-card" href="{{ essay.url }}" data-category="{{ essay.data.category }}">
+        <div class="entry-meta"><span>{{ essay.data.readingTime }}</span></div>
+        <div class="entry-copy"><h3>{{ essay.data.title }}</h3><p>{{ essay.data.summary }}</p>
+          <ul class="tag-row">{% for tag in essay.data.tags %}<li>{{ tag }}</li>{% endfor %}</ul>
+        </div>
+      </a>
+      {% endif %}{% endfor %}
+    </section>
+    {% endfor %}
+    <p class="empty-state" data-empty-state hidden>No pieces are listed in this category yet.</p>
+  </div>
 </div>
-{% for category in ["Independent work", "Essays & reflections", "Selected academic work"] %}
-<div class="archive-group" data-archive-group>
-<h2>{% if category == "Independent work" %}Independent Work{% elif category == "Essays & reflections" %}Essays &amp; Reflections{% else %}Selected Academic Work{% endif %}</h2>
-{% if category == "Selected academic work" %}<p>Substantially revised from undergraduate sociology coursework; not peer-reviewed research.</p>{% endif %}
-<div class="grid-3">
-{% for essay in collections.essays %}{% if essay.data.category == category %}
-<a class="writing-card" href="{{ essay.url }}" data-category="{{ essay.data.category }}">
-<div class="category">{{ essay.data.category }}</div><h3>{{ essay.data.title }}</h3>
-<p>{{ essay.data.summary }}</p><div class="writing-meta"><span>{{ essay.data.readingTime }}</span></div>
-<div class="tag-row">{% for tag in essay.data.tags %}<span class="tag">{{ tag }}</span>{% endfor %}</div>
-</a>{% endif %}{% endfor %}
-</div></div>{% endfor %}
-<div class="empty-state" data-empty-state hidden><p>No pieces are listed in this category yet.</p></div>
-</section></div>

@@ -3,26 +3,26 @@ layout: layouts/base.njk
 ogType: article
 navKey: writing
 ---
-    <div class="page active">
-      <article class="essay-view" data-category="{{ category }}">
-        <a class="button" href="/writing/">Back to Writing</a>
-        <br><br>
-        <div class="essay-meta">
-          By <a rel="author" href="/about/">{{ site.author }}</a> •
-          {{ category }}{% if status and status != "published" %} • {{ status }}{% endif %}{% if readingTime %} • {{ readingTime }}{% endif %}
-        </div>
-        <h1>{{ title }}</h1>
-        <p class="lede">{{ summary }}</p>
-        {% if tags %}
-        <div class="tag-row">
-          {% for tag in tags %}
-          <span class="tag">{{ tag }}</span>
-          {% endfor %}
-        </div>
-        {% endif %}
-        {% if category == "Selected academic work" %}<p class="academic-disclosure">Substantially revised from undergraduate sociology coursework. This is selected academic work, not peer-reviewed research.</p>{% endif %}
-        <div class="essay-content">
-{{ content | safe }}
-        </div>
-      </article>
+<article class="essay-view">
+  <header class="article-masthead">
+    <div class="wrap article-header">
+      <a class="text-link article-back" href="/writing/">Back to Writing</a>
+      <p class="eyebrow">{{ category }}</p>
+      <h1>{{ title }}</h1>
+      <p class="lede">{{ summary }}</p>
+      <div class="entry-meta article-byline">
+        <span>By <a rel="author" href="/about/">{{ site.author }}</a></span>
+        {% if status and status != "published" %}<span>{{ status }}</span>{% endif %}
+        {% if readingTime %}<span>{{ readingTime }}</span>{% endif %}
+      </div>
     </div>
+  </header>
+  <div class="wrap article-reading">
+    {% if tags %}<ul class="tag-row article-tags" aria-label="Topics">{% for tag in tags %}<li>{{ tag }}</li>{% endfor %}</ul>{% endif %}
+    {% if category == "Selected academic work" %}<p class="academic-disclosure">Substantially revised from undergraduate sociology coursework. This is selected academic work, not peer-reviewed research.</p>{% endif %}
+    <div class="essay-content">
+{{ content | safe }}
+    </div>
+    <div class="article-end"><a class="text-link" href="/writing/">Back to Writing</a></div>
+  </div>
+</article>

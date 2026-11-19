@@ -30,12 +30,21 @@ class Page(HTMLParser):
         self.title = ""
         self.in_title = False
         self.author_link = False
+        self.body_classes = set()
+        self.in_feature_entry = False
+        self.feature_links = []
         self.feed(text)
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         if tag == "html":
             self.lang = attrs.get("lang")
+        if tag == "body":
+            self.body_classes = set(attrs.get("class", "").split())
+        if tag == "article" and "feature-entry" in attrs.get("class", "").split():
+            self.in_feature_entry = True
+        if tag == "a" and self.in_feature_entry:
+            self.feature_links.append(attrs.get("href"))
         if tag == "h1":
             self.h1 += 1
         if tag == "title":
@@ -55,6 +64,8 @@ class Page(HTMLParser):
                 self.links.append(attrs[key])
 
     def handle_endtag(self, tag):
+        if tag == "article":
+            self.in_feature_entry = False
         if tag == "title":
             self.in_title = False
         if tag == "script" and self.json_text is not None:
@@ -108,6 +119,7 @@ def main():
         require(page.meta.get("description") == page.meta.get("og:description") == page.meta.get("twitter:description") and page.meta.get("description"), f"Inconsistent descriptions: {url}")
         require(page.title == page.meta.get("og:title") == page.meta.get("twitter:title"), f"Inconsistent titles: {url}")
         require("/assets/css/site.css" in page.links, f"Missing shared CSS: {url}")
+        require("/assets/css/publication.css" in page.links and "publication-dark" in page.body_classes, f"Missing shared publication theme: {url}")
         if url == "/404.html":
             require("noindex" in page.meta.get("robots", ""), "404 must not be indexed.")
         else:
@@ -116,6 +128,7 @@ def main():
             require(len(people) == 1 and people[0]["@id"] == PERSON and people[0]["name"] == SITE["author"], f"Inconsistent identity: {url}")
             require(people[0].get("sameAs", []) == SITE["sameAs"], f"Unexpected profile links: {url}")
         if url == "/":
+            require(len(page.feature_links) == 3 and page.feature_links[0] == "/policy-analysis/", "Expected a policy-led homepage with two supporting pieces.")
             require(any(item["@type"] == "WebSite" and item["name"] == SITE["name"] for item in page.graphs), "Missing homepage site-name schema.")
         if url == "/about/":
             require(any(item["@type"] == "ProfilePage" and item["mainEntity"]["@id"] == PERSON for item in page.graphs), "Missing About profile schema.")

@@ -8,8 +8,63 @@ lastmod: "2026-11-19"
 sitemapOrder: 1
 preloadHero: true
 ---
-<div class="page active home-page"><section class="hero"><div><div class="eyebrow">Development · Inequality · Public Policy</div><h1>Ashton Milton</h1><p class="hero-subtitle">Inequality, development governance and Asia</p><p>I write about inequality, development governance and public policy, with a focus on East and Southeast Asia. My work examines how political institutions shape economic change, how its gains reach households and where public protection falls short.</p><p>I study Politics and Sociology at Queen Mary University of London and completed a year abroad at Waseda University in Tokyo. My background also includes journalism, community research and educational governance.</p><div class="button-row"><a class="button" href="/writing/">Writing</a><a class="button" href="/about/">About</a></div></div></section><section><h2>Research and Writing Interests</h2><div class="grid-3"><article class="interest-card"><h3>Inequality and Social Protection</h3><p>How earnings, redistribution and welfare provision shape household living standards, and who remains exposed to insecurity.</p></article><article class="interest-card"><h3>Asia and Development</h3><p>The political economy of development in East and Southeast Asia, with current research on China and Vietnam.</p></article><article class="interest-card"><h3>Political Institutions and Public Policy</h3><p>How political incentives, public finance and administrative capacity shape policy priorities and the delivery of public services.</p></article></div></section><section><div class="editorial-copy"><h2>Current Research</h2><h3>Rising Powers, Unequal Lives</h3><p>The Political Economy of Household Gains in China and Vietnam, 2010–2025</p><p class="label">Research in progress</p><p>My dissertation asks how earnings and redistribution have shaped household income gains in China and Vietnam. I will first examine whether their contributions differ between the countries, then consider how political incentives and public finance might explain the patterns.</p><a class="button" href="/research/">Research Outline</a></div></section><section><h2>Featured Writing</h2><div class="grid-3">
-{% for essay in collections.essays %}{% if essay.data.featured %}
-<article class="feature-card"><h3>{{ essay.data.title }}</h3><p>{{ essay.data.summary }}</p><a class="button" href="{{ essay.url }}" aria-label="Read {{ essay.data.title }}">Read Essay</a></article>
-{% endif %}{% endfor %}
-</div><div class="button-row"><a class="button" href="/writing/">All Writing</a></div></section></div>
+<header class="publication-hero">
+  <img class="hero-art" src="/assets/images/research-hero.jpg" width="1717" height="916" alt="An illustration layers a city skyline and transport infrastructure over maps of Asia." fetchpriority="high" decoding="async">
+  <div class="wrap hero-inner">
+    <div class="hero-copy">
+      <p class="eyebrow">Development · Inequality · Public Policy</p>
+      <h1>Ashton Milton</h1>
+      <p class="publication-description">I write about inequality, development governance and public policy, with a focus on East and Southeast Asia. My work examines how political institutions shape economic change, how its gains reach households and where public protection falls short.</p>
+      <div class="hero-links"><a class="text-link" href="/writing/">Writing</a><a class="text-link" href="/research/">Research</a></div>
+    </div>
+  </div>
+</header>
+<div class="wrap home-page">
+
+  <section class="featured-section" aria-labelledby="featured-writing">
+    <div class="section-heading">
+      <h2 id="featured-writing">Featured Writing</h2>
+      <a class="text-link" href="/writing/">All Writing</a>
+    </div>
+    <div class="feature-grid">
+      {% for feature in collections.all %}{% if feature.data.homeFeature %}
+      <article class="feature-entry">
+        <div class="entry-meta"><span class="category">{{ feature.data.homeFeature.category }}</span></div>
+        <h3><a href="{{ feature.url }}">{{ feature.data.homeFeature.title }}</a></h3>
+        <p>{{ feature.data.homeFeature.summary }}</p>
+      </article>
+      {% endif %}{% endfor %}
+      {% set supportingCount = 0 %}
+      {% for essay in collections.essays %}{% if essay.data.featured and supportingCount < 2 %}
+      {% set supportingCount = supportingCount + 1 %}
+      <article class="feature-entry">
+        <div class="entry-meta"><span class="category">{{ essay.data.category }}</span><span>{{ essay.data.readingTime }}</span></div>
+        <h3><a href="{{ essay.url }}">{{ essay.data.title }}</a></h3>
+        <p>{{ essay.data.summary }}</p>
+      </article>
+      {% endif %}{% endfor %}
+    </div>
+  </section>
+
+  <section class="research-section" aria-labelledby="current-research">
+    <div class="section-heading"><h2 id="current-research">Current Research</h2><span class="label">Research in progress</span></div>
+    <div class="research-project">
+      <div class="research-copy">
+        <h3><a href="/research/">Rising Powers, Unequal Lives</a></h3>
+        <p class="research-subtitle">The Political Economy of Household Gains in China and Vietnam, 2010–2025</p>
+        <p>My dissertation asks how earnings and redistribution have shaped household income gains in China and Vietnam. I will first examine whether their contributions differ between the countries, then consider how political incentives and public finance might explain the patterns.</p>
+        <a class="text-link" href="/research/">Research Outline</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="interests-section" aria-labelledby="interests">
+    <div class="section-heading"><h2 id="interests">Research and Writing Interests</h2></div>
+    <div class="interest-grid">
+      <div><h3>Inequality and Social Protection</h3><p>How earnings, redistribution and welfare provision shape household living standards, and who remains exposed to insecurity.</p></div>
+      <div><h3>Asia and Development</h3><p>The political economy of development in East and Southeast Asia, with current research on China and Vietnam.</p></div>
+      <div><h3>Political Institutions and Public Policy</h3><p>How political incentives, public finance and administrative capacity shape policy priorities and the delivery of public services.</p></div>
+    </div>
+    <p class="home-bio">I study Politics and Sociology at Queen Mary University of London and completed a year abroad at Waseda University in Tokyo. My background also includes journalism, community research and educational governance.</p>
+  </section>
+</div>

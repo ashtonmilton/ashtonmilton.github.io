@@ -35,12 +35,13 @@
   {% endfor %}
   {% endif %}
   <link rel="stylesheet" href="/assets/css/site.css" />
+  <link rel="stylesheet" href="/assets/css/publication.css" />
   {% if preloadHero %}
   <link rel="preload" as="image" href="{{ site.image }}" />
   {% endif %}
   {% if not noindex %}{% include "structured-data.njk" %}{% endif %}
 </head>
-<body>
+<body class="publication-dark">
   <a class="skip-link" href="#main">Skip to main content</a>
   {% include "nav.njk" %}
 
