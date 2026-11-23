@@ -118,8 +118,10 @@ def main():
         require(page.meta.get("og:locale") == "en_GB", f"Wrong social locale: {url}")
         require(page.meta.get("description") == page.meta.get("og:description") == page.meta.get("twitter:description") and page.meta.get("description"), f"Inconsistent descriptions: {url}")
         require(page.title == page.meta.get("og:title") == page.meta.get("twitter:title"), f"Inconsistent titles: {url}")
-        require("/assets/css/site.css" in page.links, f"Missing shared CSS: {url}")
-        require("/assets/css/publication.css" in page.links and "publication-dark" in page.body_classes, f"Missing shared publication theme: {url}")
+        link_paths = {urlsplit(link).path for link in page.links}
+        require("/assets/css/site.css" in link_paths, f"Missing shared CSS: {url}")
+        require("/assets/css/publication.css" in link_paths and "publication-dark" in page.body_classes, f"Missing shared publication theme: {url}")
+        require(page.meta.get("theme-color") == SITE["themeColor"], f"Wrong browser theme colour: {url}")
         if url == "/404.html":
             require("noindex" in page.meta.get("robots", ""), "404 must not be indexed.")
         else:

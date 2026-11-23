@@ -24,8 +24,11 @@ scripts: ["/assets/js/archive.js"]
   <div class="archive-results">
     {% for category in ["Independent work", "Essays & reflections", "Selected academic work"] %}
     <section class="archive-group" data-archive-group>
+      <header class="archive-group-header">
       <h2>{% if category == "Independent work" %}Independent Work{% elif category == "Essays & reflections" %}Essays &amp; Reflections{% else %}Selected Academic Work{% endif %}</h2>
       {% if category == "Selected academic work" %}<p class="academic-disclosure">Substantially revised from undergraduate sociology coursework; not peer-reviewed research.</p>{% endif %}
+      </header>
+      <div class="archive-entries">
       {% for essay in collections.essays %}{% if essay.data.category == category %}
       <a class="writing-card" href="{{ essay.url }}" data-category="{{ essay.data.category }}">
         <div class="entry-meta"><span>{{ essay.data.readingTime }}</span></div>
@@ -34,6 +37,7 @@ scripts: ["/assets/js/archive.js"]
         </div>
       </a>
       {% endif %}{% endfor %}
+      </div>
     </section>
     {% endfor %}
     <p class="empty-state" data-empty-state hidden>No pieces are listed in this category yet.</p>

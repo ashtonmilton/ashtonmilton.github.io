@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="68" fill="#16352c"/>
-  <g fill="none" stroke="#c8a45d" stroke-width="38" stroke-linecap="square" stroke-linejoin="miter">
+  <rect width="512" height="512" rx="68" fill="#16352C"/>
+  <g fill="none" stroke="#D4AF37" stroke-width="38" stroke-linecap="square" stroke-linejoin="miter">
     <path d="M140 374 L214 136 L256 262 L298 136 L372 374"/>
     <path d="M174 374 L256 136 L338 374"/>
     <path d="M197 292 H315"/>
   </g>
-  <g fill="none" stroke="#16352c" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter">
+  <g fill="none" stroke="#16352C" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter">
     <path d="M256 166 V350"/>
   </g>
-  <path d="M256 176 V340" fill="none" stroke="#c8a45d" stroke-width="10" stroke-linecap="square"/>
+  <path d="M256 176 V340" fill="none" stroke="#D4AF37" stroke-width="10" stroke-linecap="square"/>
 </svg>
