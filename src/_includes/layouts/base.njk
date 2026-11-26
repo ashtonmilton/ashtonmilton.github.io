@@ -1,7 +1,7 @@
 {% set titleTag = metaTitle or (title + " | " + site.author) %}
 {% set metaDescription = description or site.description %}
 {% set canonicalUrl = site.url + page.url %}
-{% set socialImage = site.url + site.image %}
+{% set socialImage = site.url + (shareImage or site.image) %}
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
@@ -35,7 +35,7 @@
   {% endfor %}
   {% endif %}
   <link rel="stylesheet" href="/assets/css/site.css?v=2" />
-  <link rel="stylesheet" href="/assets/css/publication.css?v=3" />
+  <link rel="stylesheet" href="/assets/css/publication.css?v=4" />
   {% if preloadHero %}
   <link rel="preload" as="image" href="{{ site.image }}" />
   {% endif %}

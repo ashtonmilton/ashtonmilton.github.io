@@ -189,39 +189,29 @@
 .folio .spread{gap:1.75rem;margin:1.75rem auto}
 .essay-content.folio figure{width:100%}}
 
+.folio-controls { display:none }
+.folio .folio-leaf > p { max-width:62ch; margin:1.75rem auto }
 @media (min-width: 960px) {
-  .publication-dark .article-reading:has(.folio) {
-    width: min(94%, 1580px);
-  }
-
-  .publication-dark .essay-content.folio {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 2.25rem clamp(1rem, 2vw, 2.25rem);
-    align-items: start;
-  }
-
-  .folio .spread { display: contents; }
-
-  .essay-content.folio figure img {
-    width: 100%;
-    max-height: clamp(15rem, 47vh, 31rem);
-    object-fit: contain;
-    object-position: left bottom;
-  }
-
-  .essay-content.folio > p {
-    margin: 0;
-    align-self: center;
-  }
-
-  .folio > .spread:first-child.single + p,
-  .folio > .spread:first-child.pair ~ .spread.single:nth-of-type(2) + p {
-    grid-column: span 2;
-  }
-
-  .folio > p:nth-of-type(n + 4) {
-    grid-column: 1 / -1;
-    margin-inline: auto;
-  }
+  body.publication-dark .article-reading:has(.folio) { width:min(92%,1240px); padding-top:0 }
+  body.publication-dark .essay-content.folio { display:block }
+  .article-masthead:has(+ .article-reading .folio) { padding-block:1.65rem 1rem }
+  .article-masthead:has(+ .article-reading .folio) .article-header { max-width:1240px; text-align:left }
+  .article-masthead:has(+ .article-reading .folio) h1 { font-size:3.5rem; margin-block:.25rem }
+  .article-masthead:has(+ .article-reading .folio) .lede { margin:.5rem 0; max-width:62ch }
+  .folio .folio-leaf[hidden] { display:none }
+  .folio .folio-leaf { margin-bottom:1.5rem }
+  .folio .spread { display:grid; width:100%; margin:0 auto; gap:1.25rem; align-items:start; padding:0 }
+  .folio .spread.single { max-width:none; grid-template-columns:1fr }
+  .folio .spread.pair { grid-template-columns:repeat(2,minmax(0,1fr)) }
+  .folio .spread figure { display:grid; justify-items:center; padding:0 }
+  .essay-content.folio figure img { width:100%; height:clamp(16rem,48vh,38rem); max-height:none; object-fit:contain; object-position:center bottom }
+  .essay-content.folio figcaption { width:100%; max-width:60ch; margin:.65rem auto 0 }
+  .folio .folio-leaf > p { margin:1.75rem auto 0; max-width:62ch }
+  .folio-controls:not([hidden]) { display:flex; align-items:center; justify-content:space-between; border-block:1px solid #faf6ed33; margin:0 0 1rem; padding:.2rem 0; color:#c5a253 }
+  .folio-controls button { background:none; border:0; color:#faf6ed; font:inherit; min-width:8rem; min-height:2.75rem; cursor:pointer }
+  .folio-controls button:first-child { text-align:left }
+  .folio-controls button:last-child { text-align:right }
+  .folio-controls button:disabled { opacity:.4; cursor:default }
+  .folio-controls button:focus-visible { outline:2px solid #c5a253; outline-offset:2px }
+  .folio-controls button:hover:not(:disabled) { color:#c5a253 }
 }

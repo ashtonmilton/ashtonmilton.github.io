@@ -21,6 +21,7 @@ navKey: writing
     {% if tags and not question %}<ul class="tag-row article-tags" aria-label="Topics">{% for tag in tags %}<li>{{ tag }}</li>{% endfor %}</ul>{% endif %}
     {% if category == "Selected academic work" %}<p class="academic-disclosure">Substantially revised from undergraduate sociology coursework. This is selected academic work, not peer-reviewed research.</p>{% endif %}
     <div class="essay-content{% if question %} folio{% endif %}">
+{% if question %}<nav class="folio-controls" aria-label="Photo essay spreads" hidden><button type="button">← Previous</button><span aria-live="polite"></span><button type="button">Next →</button></nav>{% endif %}
 {{ content | safe }}
     </div>
     {% include "related-reading.njk" %}
