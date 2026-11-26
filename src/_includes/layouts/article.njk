@@ -6,10 +6,10 @@ navKey: writing
 <article class="essay-view">
   <header class="article-masthead">
     <div class="wrap article-header">
-      <a class="text-link article-back" href="/writing/">Back to Writing</a>
+      <a class="text-link article-back" href="/writing/">Back to Work</a>
       <p class="eyebrow">{{ category }}</p>
       <h1>{{ title }}</h1>
-      <p class="lede">{{ summary }}</p>
+      <p class="lede">{{ question or summary }}</p>
       <div class="entry-meta article-byline">
         <span>By <a rel="author" href="/about/">{{ site.author }}</a></span>
         {% if status and status != "published" %}<span>{{ status }}</span>{% endif %}
@@ -18,12 +18,12 @@ navKey: writing
     </div>
   </header>
   <div class="wrap article-reading">
-    {% if tags %}<ul class="tag-row article-tags" aria-label="Topics">{% for tag in tags %}<li>{{ tag }}</li>{% endfor %}</ul>{% endif %}
+    {% if tags and not question %}<ul class="tag-row article-tags" aria-label="Topics">{% for tag in tags %}<li>{{ tag }}</li>{% endfor %}</ul>{% endif %}
     {% if category == "Selected academic work" %}<p class="academic-disclosure">Substantially revised from undergraduate sociology coursework. This is selected academic work, not peer-reviewed research.</p>{% endif %}
-    <div class="essay-content">
+    <div class="essay-content{% if question %} folio{% endif %}">
 {{ content | safe }}
     </div>
     {% include "related-reading.njk" %}
-    <div class="article-end"><a class="text-link" href="/writing/">Back to Writing</a></div>
+    <div class="article-end"><a class="text-link" href="/writing/">Back to Work</a></div>
   </div>
 </article>

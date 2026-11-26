@@ -172,3 +172,19 @@
   .hero-copy h1 { font-size: 3rem; }
   .hero-inner { padding-block: 28px 34px; }
 }
+
+/* Photo essay sequences */
+.publication-dark .article-reading:has(.folio){width:min(92%,1160px);max-width:none}
+.publication-dark .essay-content.folio{width:100%;max-width:none;margin:auto}
+.folio .spread{display:grid;gap:1.5rem;align-items:start;margin:2rem auto 3rem}
+.folio .pair{grid-template-columns:repeat(2,minmax(0,1fr))}
+.folio .single{max-width:54rem}
+.essay-content.folio figure{display:block;min-width:0;padding:0;border:0;margin:0}
+.essay-content.folio figure img{height:auto;max-height:none;width:100%}
+.essay-content.folio figcaption{max-width:59ch;margin:.65rem 0 0;font-size:.94rem;line-height:1.5}
+.essay-content.folio figcaption strong{display:inline;color:#c5a253}
+.essay-content.folio figcaption strong::after{content:" · "}
+.folio>p{margin:2rem auto;max-width:62ch}
+.article-masthead:has(+.article-reading .folio){padding-bottom:1rem}@media(max-width:700px){.folio .pair{grid-template-columns:1fr}
+.folio .spread{gap:1.75rem;margin:1.75rem auto}
+.essay-content.folio figure{width:100%}}

@@ -16,7 +16,7 @@ scripts: ["/assets/js/hero.js"]
       <p class="eyebrow">Development · Inequality · Public Policy</p>
       <h1><span>Ashton</span> <span>Milton</span></h1>
       <p class="publication-description">I write about inequality, development governance and public policy, with a focus on East and Southeast Asia. My work examines how political institutions shape economic change, how its gains reach households and where public protection falls short.</p>
-      <div class="hero-links"><a class="text-link" href="/writing/">Writing</a><a class="text-link" href="/research/">Research</a></div>
+      <div class="hero-links"><a class="text-link" href="/writing/">Work</a><a class="text-link" href="/research/">Research</a></div>
     </div>
   </div>
 </header>
@@ -24,8 +24,8 @@ scripts: ["/assets/js/hero.js"]
 
   <section class="featured-section" aria-labelledby="featured-writing">
     <div class="section-heading">
-      <h2 id="featured-writing">Featured Writing</h2>
-      <a class="text-link" href="/writing/">All Writing</a>
+      <h2 id="featured-writing">Featured Work</h2>
+      <a class="text-link" href="/writing/">All Work</a>
     </div>
     <div class="feature-grid">
       {% for feature in collections.all %}{% if feature.data.homeFeature %}
@@ -35,15 +35,14 @@ scripts: ["/assets/js/hero.js"]
         <p>{{ feature.data.homeFeature.summary }}</p>
       </article>
       {% endif %}{% endfor %}
-      {% set supportingCount = 0 %}
-      {% for essay in collections.essays %}{% if essay.data.featured and supportingCount < 2 %}
-      {% set supportingCount = supportingCount + 1 %}
+      {% for selected in ["/writing/what-is-hukou/", "/writing/on-display/"] %}
+      {% for essay in collections.essays %}{% if essay.url == selected %}
       <article class="feature-entry">
-        <div class="entry-meta"><span class="category">{{ essay.data.category }}</span><span>{{ essay.data.readingTime }}</span></div>
+        <div class="entry-meta"><span class="category">{% if essay.data.question %}Photo Essay{% else %}Explainer{% endif %}</span><span>{{ essay.data.readingTime }}</span></div>
         <h3><a href="{{ essay.url }}">{{ essay.data.title }}</a></h3>
-        <p>{{ essay.data.summary }}</p>
+        <p>{{ essay.data.question or essay.data.summary }}</p>
       </article>
-      {% endif %}{% endfor %}
+      {% endif %}{% endfor %}{% endfor %}
     </div>
   </section>
 
