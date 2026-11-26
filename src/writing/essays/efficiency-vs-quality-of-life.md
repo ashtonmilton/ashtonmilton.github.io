@@ -2,8 +2,13 @@
 layout: "layouts/article.njk"
 permalink: "/writing/efficiency-vs-quality-of-life/"
 title: "The Difference Between Efficiency and Quality of Life"
-metaTitle: "The Difference Between Efficiency and Quality of Life | Ashton Milton"
-description: "Operational reliability expands everyday autonomy, yet a city can run with extraordinary precision while workers are squeezed by stagnant wages, precarious contracts and acute time poverty."
+metaTitle: "Urban Efficiency and Quality of Life | Ashton Milton"
+description: "Why reliable transport and public systems can improve daily life without resolving stagnant wages, insecure work or time poverty."
+relatedReading:
+  - url: "/writing/politics-of-cleanliness/"
+    label: "The Politics of Cleanliness"
+  - url: "/writing/sociology-of-time-covid/"
+    label: "A Sociology of Time and Everyday Life During COVID-19"
 summary: "Operational reliability expands everyday autonomy, yet a city can run with extraordinary precision while workers are squeezed by stagnant wages, precarious contracts and acute time poverty."
 category: "Essays & reflections"
 tags: ["Urban life", "Public systems", "Quality of life"]

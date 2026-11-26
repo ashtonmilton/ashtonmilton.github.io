@@ -21,6 +21,7 @@ class Page(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.meta = {}
         self.links = []
+        self.anchors = []
         self.ids = set()
         self.canonicals = []
         self.graphs = []
@@ -45,6 +46,8 @@ class Page(HTMLParser):
             self.in_feature_entry = True
         if tag == "a" and self.in_feature_entry:
             self.feature_links.append(attrs.get("href"))
+        if tag == "a" and attrs.get("href"):
+            self.anchors.append(attrs["href"])
         if tag == "h1":
             self.h1 += 1
         if tag == "title":
@@ -94,6 +97,8 @@ def main():
     require(bool(files), "Build the site before verification.")
     pages = {public_path(file): Page(file.read_text()) for file in files}
     titles = set()
+    descriptions = set()
+    destinations = {url: set() for url in pages}
     article_count = 0
     for file in OUTPUT.rglob("*"):
         require(not file.is_symlink(), f"Symlink in public output: {file.name}")
@@ -117,6 +122,9 @@ def main():
         require(page.meta.get("og:site_name") == SITE["name"], f"Wrong site name: {url}")
         require(page.meta.get("og:locale") == "en_GB", f"Wrong social locale: {url}")
         require(page.meta.get("description") == page.meta.get("og:description") == page.meta.get("twitter:description") and page.meta.get("description"), f"Inconsistent descriptions: {url}")
+        description = page.meta["description"].strip()
+        require(description and description not in descriptions, f"Missing or duplicate description: {url}")
+        descriptions.add(description)
         require(page.title == page.meta.get("og:title") == page.meta.get("twitter:title"), f"Inconsistent titles: {url}")
         link_paths = {urlsplit(link).path for link in page.links}
         require("/assets/css/site.css" in link_paths, f"Missing shared CSS: {url}")
@@ -125,7 +133,7 @@ def main():
         if url == "/404.html":
             require("noindex" in page.meta.get("robots", ""), "404 must not be indexed.")
         else:
-            require("noindex" not in page.meta.get("robots", ""), f"Public page blocked: {url}")
+            require(all("noindex" not in page.meta.get(name, "").lower() for name in ("robots", "googlebot")), f"Public page blocked: {url}")
             people = [item for item in page.graphs if item["@type"] == "Person"]
             require(len(people) == 1 and people[0]["@id"] == PERSON and people[0]["name"] == SITE["author"], f"Inconsistent identity: {url}")
             require(people[0].get("sameAs", []) == SITE["sameAs"], f"Unexpected profile links: {url}")
@@ -134,6 +142,9 @@ def main():
             require(any(item["@type"] == "WebSite" and item["name"] == SITE["name"] for item in page.graphs), "Missing homepage site-name schema.")
         if url == "/about/":
             require(any(item["@type"] == "ProfilePage" and item["mainEntity"]["@id"] == PERSON for item in page.graphs), "Missing About profile schema.")
+        if url == "/contact/":
+            linkedin = [link for link in SITE["sameAs"] if urlsplit(link).hostname == "www.linkedin.com"]
+            require(all(link in page.anchors for link in linkedin), "Contact does not link to the LinkedIn profile.")
         for item in page.graphs:
             if item["@type"] == "Article":
                 article_count += 1
@@ -152,6 +163,12 @@ def main():
             require(target.exists(), f"Broken internal link from {url}: {ref}")
             if parsed.fragment and target_url in pages:
                 require(unquote(parsed.fragment) in pages[target_url].ids, f"Broken fragment from {url}: {ref}")
+        for ref in page.anchors:
+            destination = urlsplit(urljoin(ORIGIN + url, ref))
+            if destination.scheme == "https" and destination.netloc == urlsplit(ORIGIN).netloc:
+                path = unquote(destination.path)
+                if path in pages:
+                    destinations[url].add(path)
 
     css = OUTPUT / "assets/css/site.css"
     for ref in re.findall(r"url\(([^)]+)\)", css.read_text()):
@@ -164,6 +181,15 @@ def main():
     locations = [node.text for node in sitemap.findall(".//s:loc", ns)]
     expected = {ORIGIN + url for url in pages if url != "/404.html"}
     require(set(locations) == expected and len(locations) == len(expected), "Sitemap does not match public pages.")
+    reachable = set()
+    remaining = ["/"]
+    while remaining:
+        path = remaining.pop()
+        if path not in reachable:
+            reachable.add(path)
+            remaining.extend(destinations[path] - reachable)
+    orphaned = {urlsplit(url).path for url in locations} - reachable
+    require(not orphaned, f"Sitemap pages not reachable through site links: {', '.join(sorted(orphaned))}")
     require("Sitemap: " + ORIGIN + "/sitemap.xml" in (OUTPUT / "robots.txt").read_text(), "Wrong sitemap in robots.txt.")
     feed = ET.parse(OUTPUT / "feed.xml")
     atom = {"a": "http://www.w3.org/2005/Atom"}

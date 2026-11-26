@@ -2,8 +2,13 @@
 layout: "layouts/article.njk"
 permalink: "/writing/politics-of-cleanliness/"
 title: "The Politics of Cleanliness"
-metaTitle: "The Politics of Cleanliness | Ashton Milton"
-description: "A clean city is not simply an expression of national character; it is sustained through labour, infrastructure, public finance and rules governing waste."
+metaTitle: "What Keeps Cities Clean? Labour, Infrastructure and Policy | Ashton Milton"
+description: "An essay on urban cleanliness and the work behind it: sanitation labour, waste infrastructure, public spending and rules in shared spaces."
+relatedReading:
+  - url: "/writing/east-asian-cities-newer/"
+    label: "Why East Asian Cities Can Feel Newer Than European Ones"
+  - url: "/writing/efficiency-vs-quality-of-life/"
+    label: "The Difference Between Efficiency and Quality of Life"
 summary: "A clean city is not simply an expression of national character; it is sustained through labour, infrastructure, public finance and rules governing waste."
 category: "Essays & reflections"
 tags: ["Urban governance", "Labour", "Public space"]

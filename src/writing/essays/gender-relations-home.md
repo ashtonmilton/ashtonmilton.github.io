@@ -2,8 +2,13 @@
 layout: "layouts/article.njk"
 permalink: "/writing/gender-relations-home/"
 title: "Is the Home a Space of Unequal Gender Relations?"
-metaTitle: "Is the Home a Space of Unequal Gender Relations? | Ashton Milton"
-description: "How the domestic sphere can offer emotional belonging while simultaneously reproducing inequalities in unpaid labour, intra-household bargaining power and personal security."
+metaTitle: "Gender Inequality at Home: Unpaid Labour, Money and Power | Ashton Milton"
+description: "A sociology essay on how unpaid domestic labour, financial control and unequal bargaining power can coexist with care and belonging at home."
+relatedReading:
+  - url: "/writing/freedom-from-gender/"
+    label: "Freedom from Gender"
+  - url: "/writing/sociology-of-time-covid/"
+    label: "A Sociology of Time and Everyday Life During COVID-19"
 summary: "How the domestic sphere can offer emotional belonging while simultaneously reproducing inequalities in unpaid labour, intra-household bargaining power and personal security."
 category: "Selected academic work"
 tags: ["Gender", "Inequality", "Domestic labour"]

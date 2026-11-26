@@ -2,8 +2,13 @@
 layout: "layouts/article.njk"
 permalink: "/writing/who-gets-to-belong-in-chinas-cities/"
 title: "Who Gets to Belong in China’s Cities?"
-metaTitle: "Who Gets to Belong in China’s Cities? | Ashton Milton"
-description: "How household registration, school admissions and public-service financing shape the terms of belonging in China’s cities."
+metaTitle: "China’s Hukou System and Access to Public Services | Ashton Milton"
+description: "How China’s household registration system shapes access to schools and other public services, and why local financing matters."
+relatedReading:
+  - url: "/writing/east-asian-cities-newer/"
+    label: "Why East Asian Cities Can Feel Newer Than European Ones"
+  - url: "/research/"
+    label: "Research on Household Income in China and Vietnam"
 summary: "How household registration, school admissions and public-service financing shape the terms of belonging in China’s cities."
 category: "Independent work"
 tags: ["China", "Public services", "Inequality"]

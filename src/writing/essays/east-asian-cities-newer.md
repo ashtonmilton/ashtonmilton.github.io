@@ -2,8 +2,13 @@
 layout: "layouts/article.njk"
 permalink: "/writing/east-asian-cities-newer/"
 title: "Why East Asian Cities Can Feel Newer Than European Ones"
-metaTitle: "Why East Asian Cities Can Feel Newer Than European Ones | Ashton Milton"
-description: "How reconstruction, redevelopment and the timing of urban growth shape perceptions of modernity, with Tokyo and London as the principal comparison."
+metaTitle: "Why Tokyo Can Feel Newer Than London | Ashton Milton"
+description: "A comparison of Tokyo and London on how post-war reconstruction, redevelopment and infrastructure shape the experience of urban modernity."
+relatedReading:
+  - url: "/writing/politics-of-cleanliness/"
+    label: "The Politics of Cleanliness"
+  - url: "/writing/efficiency-vs-quality-of-life/"
+    label: "The Difference Between Efficiency and Quality of Life"
 summary: "How reconstruction, redevelopment and the timing of urban growth shape perceptions of modernity, with Tokyo and London as the principal comparison."
 category: "Essays & reflections"
 tags: ["Urban development", "East Asia", "Infrastructure"]

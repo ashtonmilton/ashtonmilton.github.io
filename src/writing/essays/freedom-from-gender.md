@@ -2,8 +2,11 @@
 layout: "layouts/article.njk"
 permalink: "/writing/freedom-from-gender/"
 title: "Freedom from Gender"
-metaTitle: "Freedom from Gender | Ashton Milton"
-description: "An argument for limiting the institutional authority of gender while protecting self-identification, privacy and the power to challenge consequential classifications."
+metaTitle: "Freedom from Gender: When Should Institutions Classify by Gender? | Ashton Milton"
+description: "A political theory essay on when institutions should use gender classifications and how they can protect privacy, self-identification and the right to challenge decisions."
+relatedReading:
+  - url: "/writing/gender-relations-home/"
+    label: "Is the Home a Space of Unequal Gender Relations?"
 summary: "An argument for limiting the institutional authority of gender while protecting self-identification, privacy and the power to challenge consequential classifications."
 category: "Independent work"
 tags: ["Political theory", "Gender", "Social equality"]

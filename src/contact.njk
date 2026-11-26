@@ -2,14 +2,17 @@
 layout: "layouts/base.njk"
 permalink: "/contact/"
 metaTitle: "Contact | Ashton Milton"
-description: "Contact Ashton Milton for research and editorial enquiries or to discuss his writing."
+description: "Contact Ashton Milton by email or LinkedIn for research and editorial enquiries or to discuss his writing."
 navKey: "contact"
-lastmod: "2026-11-16"
+lastmod: "2026-11-26"
 sitemapOrder: 6
 ---
 <header class="page-masthead"><div class="wrap masthead-inner"><h1>Contact</h1><p>For research or editorial enquiries, please email me.</p></div></header>
 <div class="wrap contact-section">
   <p class="eyebrow">Email</p>
   <p><a class="contact-address" href="mailto:hello@ashtonmilton.net">hello@ashtonmilton.net</a></p>
+  {% for profile in site.sameAs %}
+  {% if "https://www.linkedin.com/in/" in profile %}<p><a class="text-link" href="{{ profile | escape }}">Ashton Milton on LinkedIn</a></p>{% endif %}
+  {% endfor %}
   <p>Based in London, United Kingdom</p>
 </div>

@@ -39,9 +39,11 @@ Use lastmod only for a genuine modification date. Add date only for a real publi
 
 ## Identity and Search
 
-The sameAs array is deliberately empty until genuine public profile URLs have been supplied and checked. Add only complete HTTPS URLs belonging to Ashton Milton; the templates then include them in the shared Person identity. Do not add invented qualifications or affiliations.
+The sameAs array contains public profile URLs supplied by Ashton Milton. Add only complete HTTPS URLs belonging to Ashton Milton; the templates include them in the shared Person identity, and Contact also displays the LinkedIn profile. Do not add invented qualifications or affiliations.
 
 The homepage provides WebSite data, About provides ProfilePage data and articles refer to the same Person identity with visible author attribution. No personal photograph is required. Search Console verification should use DNS, not a website tag. No Analytics or tracking scripts are installed. Metadata cannot guarantee a search position.
+
+Use `metaTitle` and `description` to describe each page's main subject to search readers without changing its visible headline or permalink. Keep `summary` as the visible introduction. To recommend reading, use a short `relatedReading` list of `url` and `label` pairs; link only to genuinely related pages. The deployment checker validates links, distinct metadata, canonical URLs and the site's author profile.
 
 ## Upload Hygiene
 
