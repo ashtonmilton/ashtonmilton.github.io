@@ -18,14 +18,16 @@ scripts: ["/assets/js/archive.js"]
   <div class="archive-tools" role="group" aria-label="Writing categories" hidden>
     <button class="filter-button active" type="button" data-filter="all" aria-pressed="true">All Writing</button>
     <button class="filter-button" type="button" data-filter="Independent work" aria-pressed="false">Independent Work</button>
+    <button class="filter-button" type="button" data-filter="Notes" aria-pressed="false">Notes</button>
+    <button class="filter-button" type="button" data-filter="Photo Essays" aria-pressed="false">Photo Essays</button>
     <button class="filter-button" type="button" data-filter="Essays &amp; reflections" aria-pressed="false">Essays &amp; Reflections</button>
     <button class="filter-button" type="button" data-filter="Selected academic work" aria-pressed="false">Selected Academic Work</button>
   </div>
   <div class="archive-results">
-    {% for category in ["Independent work", "Essays & reflections", "Selected academic work"] %}
+    {% for category in ["Independent work", "Notes", "Photo Essays", "Essays & reflections", "Selected academic work"] %}
     <section class="archive-group" data-archive-group>
       <header class="archive-group-header">
-      <h2>{% if category == "Independent work" %}Independent Work{% elif category == "Essays & reflections" %}Essays &amp; Reflections{% else %}Selected Academic Work{% endif %}</h2>
+      <h2>{% if category == "Independent work" %}Independent Work{% elif category == "Essays & reflections" %}Essays &amp; Reflections{% elif category == "Selected academic work" %}Selected Academic Work{% else %}{{ category }}{% endif %}</h2>
       {% if category == "Selected academic work" %}<p class="academic-disclosure">Substantially revised from undergraduate sociology coursework; not peer-reviewed research.</p>{% endif %}
       </header>
       <div class="archive-entries">

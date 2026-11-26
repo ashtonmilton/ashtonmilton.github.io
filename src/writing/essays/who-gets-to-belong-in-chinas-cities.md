@@ -5,6 +5,8 @@ title: "Who Gets to Belong in China’s Cities?"
 metaTitle: "China’s Hukou System and Access to Public Services | Ashton Milton"
 description: "How China’s household registration system shapes access to schools and other public services, and why local financing matters."
 relatedReading:
+  - url: "/writing/what-is-hukou/"
+    label: "What Is Hukou, and Why Does It Matter for School Access?"
   - url: "/writing/east-asian-cities-newer/"
     label: "Why East Asian Cities Can Feel Newer Than European Ones"
   - url: "/research/"
