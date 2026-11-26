@@ -188,3 +188,40 @@
 .article-masthead:has(+.article-reading .folio){padding-bottom:1rem}@media(max-width:700px){.folio .pair{grid-template-columns:1fr}
 .folio .spread{gap:1.75rem;margin:1.75rem auto}
 .essay-content.folio figure{width:100%}}
+
+@media (min-width: 960px) {
+  .publication-dark .article-reading:has(.folio) {
+    width: min(94%, 1580px);
+  }
+
+  .publication-dark .essay-content.folio {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2.25rem clamp(1rem, 2vw, 2.25rem);
+    align-items: start;
+  }
+
+  .folio .spread { display: contents; }
+
+  .essay-content.folio figure img {
+    width: 100%;
+    max-height: clamp(15rem, 47vh, 31rem);
+    object-fit: contain;
+    object-position: left bottom;
+  }
+
+  .essay-content.folio > p {
+    margin: 0;
+    align-self: center;
+  }
+
+  .folio > .spread:first-child.single + p,
+  .folio > .spread:first-child.pair ~ .spread.single:nth-of-type(2) + p {
+    grid-column: span 2;
+  }
+
+  .folio > p:nth-of-type(n + 4) {
+    grid-column: 1 / -1;
+    margin-inline: auto;
+  }
+}
