@@ -8,15 +8,3 @@ preview_urls = false
 ABOUT_LOCALISATION = "on"
 SECURITY_HEADERS = "on"
 READERSHIP_ENABLED = "off"
-
-[[analytics_engine_datasets]]
-binding = "READERSHIP_EVENTS"
-dataset = "ashton_readership"
-
-[[ratelimits]]
-name = "READERSHIP_LIMIT"
-namespace_id = "811018"
-
-[ratelimits.simple]
-limit = 60
-period = 60
