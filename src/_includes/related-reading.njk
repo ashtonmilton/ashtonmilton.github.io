@@ -1,9 +1,11 @@
-{% if relatedReading and relatedReading.length %}
+{% set manualRelated = relatedReading and relatedReading.length %}
+{% set links = relatedReading if manualRelated else (collections.essays | suggestRelatedWork(page.url, tags, category)) %}
+{% if links and links.length %}
 <nav class="article-end" aria-labelledby="related-reading">
-  <h2 id="related-reading">Related Reading</h2>
+  <h2 id="related-reading">Related Work</h2>
   <ul class="reference-list">
-    {% for link in relatedReading %}
-    <li><a class="text-link" href="{{ link.url | escape }}">{{ link.label | escape }}</a></li>
+    {% for link in links %}
+    <li><a class="text-link" href="{{ link.url | escape }}"{% if not manualRelated %} data-auto-related{% endif %}>{{ link.label | escape }}</a></li>
     {% endfor %}
   </ul>
 </nav>

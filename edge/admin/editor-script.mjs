@@ -1,4 +1,11 @@
 function setupEditor() {
+  for (const fieldset of document.querySelectorAll("[data-related-editor]")) {
+    fieldset.addEventListener("click", (event) => {
+      const all = event.target.closest("[data-related-all]");
+      if (!all && !event.target.closest("[data-related-clear]")) return;
+      for (const choice of fieldset.querySelectorAll('input[name="related"]:not(:disabled)')) choice.checked = !!all;
+    });
+  }
   const gallery = document.querySelector("[data-photo-editor]");
   if (!gallery) return;
   const cards = gallery.querySelector("[data-photo-cards]");

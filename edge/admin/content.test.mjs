@@ -1,6 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {readFileSync} from "node:fs";
 import {applyCopy, copyFields, openCopy, uploadFile} from "./content.mjs";
+
+test("Page editing groups appropriate fields and does not expose Work search messages", () => {
+  const home = copyFields(readFileSync(new URL("../../src/index.njk", import.meta.url), "utf8"));
+  assert.ok(home.some(({label,group}) => label === "Introduction" && group === "Homepage Header"));
+  assert.ok(home.some(({label,group}) => label === "Research Subtitle" && group === "Current Research"));
+  assert.ok(home.some(({label,group}) => label === "Search and Social Summary" && group === "Search and Sharing"));
+  const work = copyFields(readFileSync(new URL("../../src/writing/index.njk", import.meta.url), "utf8"));
+  assert.ok(!work.some(({value}) => ["All Work","No matching work."].includes(value)));
+  assert.ok(work.some(({label}) => label === "Academic Work Disclosure"));
+});
 
 test("Copy edits preserve template logic, links, metadata and structure, and escape new markup", async () => {
   const source = '---\nlayout: "base"\ndescription: "Original metadata"\n---\n<h1>Original heading</h1><a href="/contact/">Contact</a>{% if true %}<p>{{ value }}</p>{% endif %}\n<img src="/test.webp" alt="A photo.">';

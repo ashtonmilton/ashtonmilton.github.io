@@ -3,11 +3,13 @@ main = "about-localisation.mjs"
 compatibility_date = "2026-11-27"
 workers_dev = false
 preview_urls = false
+keep_names = false
 
 [vars]
 ABOUT_LOCALISATION = "on"
 SECURITY_HEADERS = "on"
 READERSHIP_ENABLED = "on"
+READERSHIP_CONSENT_FALLBACK = "on"
 
 [[analytics_engine_datasets]]
 binding = "READERSHIP_EVENTS"

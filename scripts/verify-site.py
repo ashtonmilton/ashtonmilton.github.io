@@ -36,6 +36,8 @@ class Page(HTMLParser):
         self.body_classes = set()
         self.in_feature_entry = False
         self.feature_links = []
+        self.in_related = False
+        self.related_links = []
         self.photos = []
         self.feed(text)
 
@@ -51,6 +53,10 @@ class Page(HTMLParser):
             self.feature_links.append(attrs.get("href"))
         if tag == "a" and attrs.get("href"):
             self.anchors.append(attrs["href"])
+            if self.in_related:
+                self.related_links.append(attrs["href"])
+        if tag == "nav" and attrs.get("aria-labelledby") == "related-reading":
+            self.in_related = True
         if tag == "h1":
             self.h1 += 1
         if tag in self.section_counts:
@@ -79,6 +85,8 @@ class Page(HTMLParser):
     def handle_endtag(self, tag):
         if tag == "article":
             self.in_feature_entry = False
+        if tag == "nav":
+            self.in_related = False
         if tag == "title":
             self.in_title = False
         if tag == "script" and self.json_text is not None:
@@ -181,6 +189,9 @@ def main():
         if url == "/contact/":
             linkedin = [link for link in SITE["sameAs"] if urlsplit(link).hostname == "www.linkedin.com"]
             require(all(link in page.anchors for link in linkedin), "Contact does not link to the LinkedIn profile.")
+        if url.startswith("/writing/") and url != "/writing/" and sum(path.startswith("/writing/") for path in pages) > 2:
+            require(bool(page.related_links) and len(page.related_links) == len(set(page.related_links)), f"Missing or duplicate Related Work links: {url}")
+            require(all(urlsplit(link).path != url for link in page.related_links), f"Related Work links to itself: {url}")
         for item in page.graphs:
             if item["@type"] == "Article":
                 article_count += 1

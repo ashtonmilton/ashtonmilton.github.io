@@ -1,4 +1,5 @@
-import {editableWriting, listWriting, publicationFromForm, PublishError, revisePhotoMetadata, submitPublication, updateArticleFields} from "./publishing.mjs";
+import {editableWriting, listWriting, publicationFromForm, PublishError, publicationSource, revisePhotoMetadata, submitPublication, updateArticleFields, updateRelated} from "./publishing.mjs";
+import {parseWriting} from "./legacy.mjs";
 
 const api = "https://api.github.com/repos/ashtonmilton/ashtonmilton.github.io/contents/";
 const featuredFile = "src/_data/homeFeatured.json";
@@ -105,10 +106,15 @@ export async function savePhotoEssay(form, token) {
     if (form.get("confirm") !== "yes") throw new PublishError("Confirm these changes for publication.");
     if (previous !== current.previous) throw new PublishError("This photo essay changed. Reopen it before publishing.", 409);
     const intro = String(form.get("writing") || "").trim();
-    publication = revisePhotoMetadata(current, {...updateArticleFields(current.data, form), ...photoData}, intro);
+    publication = revisePhotoMetadata(current, {...await updateRelated(updateArticleFields(current.data, form), form), ...photoData}, intro);
   } else {
     form.set("type", "photo");
     publication = await publicationFromForm(form, new Date(), photoData);
+    if (form.has("related-enabled")) {
+      const parsed = parseWriting(publication.markdown);
+      await updateRelated(parsed.data, form);
+      publication.markdown = publicationSource(parsed.data, parsed.originalBody);
+    }
   }
   return {slug: publication.slug, sha: await submitPublication(publication, token)};
 }

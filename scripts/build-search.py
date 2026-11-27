@@ -25,7 +25,7 @@ class Entry(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
-        self.references.update(attrs[key] for key in ("href", "src", "poster") if attrs.get(key))
+        self.references.update(attrs[key] for key in ("href", "src", "poster") if attrs.get(key) and "data-auto-related" not in attrs)
         self.references.update(part.split()[0] for part in attrs.get("srcset", "").split(",") if part.strip())
         if tag == "html":
             self.lang = attrs.get("lang", self.lang)

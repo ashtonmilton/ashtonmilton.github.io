@@ -1,4 +1,5 @@
 import {PublishError} from "./publishing.mjs";
+import {parseFragment} from "parse5";
 
 const fixed = new Map([
   ["home", ["Home", "src/index.njk"]], ["work", ["Work", "src/writing/index.njk"]],
@@ -37,16 +38,58 @@ const decodeEntities = (value) => value.replace(/&(#x[\da-f]+|#\d+|amp|lt|gt|nbs
 });
 const safeHtml = (value) => value.replace(/[&<>"{}]/g, (char) => ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "{":"&#123;", "}":"&#125;"})[char]);
 
+const shortText = (text) => text.replace(/\s+/g, " ").trim().split(" ").slice(0, 7).join(" ");
+const copyNames = {metaTitle: "Search and Social Title", description: "Search and Social Summary", summary: "Archive Summary",
+  title: "Title", question: "Opening Question", readingTime: "Reading Time", eyebrow: "Eyebrow", jump: "Profile Link Text", lede: "Introduction",
+  exitTitle: "English Site Heading", exitDescription: "English Site Description", exitLink: "English Site Link Text"};
+const sectionClasses = [["publication-hero", "Homepage Header"], ["featured-section", "Featured Work"], ["research-section", "Current Research"],
+  ["interests-section", "Research Interests"], ["page-masthead", "Page Header"], ["archive-layout", "Work Archive"]];
+const detailClasses = [["publication-description", "Introduction"], ["home-bio", "Short Biography"], ["eyebrow", "Eyebrow"],
+  ["research-subtitle", "Research Subtitle"], ["academic-disclosure", "Academic Work Disclosure"], ["label", "Status Label"]];
+
+function copyContext(body) {
+  const masked = body.replace(/\{(?:\{[\s\S]*?\}\}|%[\s\S]*?%\}|#[\s\S]*?#\})/g, (value) => value.replace(/[^\r\n]/g, " "));
+  const tree = parseFragment(masked, {sourceCodeLocationInfo: true});
+  const elements = [];
+  const value = (node) => node.nodeName === "#text" ? node.value : (node.childNodes || []).map(value).join("");
+  function walk(node, parent = []) {
+    const stack = node.tagName ? [...parent, node] : parent;
+    if (node.tagName && node.sourceCodeLocation) elements.push({start:node.sourceCodeLocation.startOffset, end:node.sourceCodeLocation.endOffset, stack});
+    for (const child of node.childNodes || []) walk(child, stack);
+  }
+  walk(tree);
+  const headings = elements.filter(({stack}) => stack.at(-1)?.tagName === "h2");
+  return (offset, type, text) => {
+    const stack = elements.findLast(({start,end}) => start <= offset && offset < end)?.stack || [];
+    const has = (node, attr) => node.attrs?.some(({name}) => name === attr);
+    const classes = (node) => node.attrs?.find(({name}) => name === "class")?.value.split(/\s+/) || [];
+    const all = stack.flatMap(classes);
+    const previous = headings.findLast(({start}) => start <= offset)?.stack.at(-1);
+    const group = sectionClasses.find(([key]) => all.includes(key))?.[1] || (previous && shortText(value(previous))) || "Page Content";
+    const hasTag = (test) => stack.findLast(({tagName}) => test(tagName));
+    const heading = hasTag((tag) => /^h[1-6]$/.test(tag));
+    if (stack.some((node) => has(node, "data-filter") || has(node, "data-empty-state") || has(node, "data-search-status")) ||
+        (heading && all.includes("archive-group-header"))) return null;
+    const link = hasTag((tag) => tag === "a");
+    const detail = detailClasses.find(([key]) => all.includes(key))?.[1];
+    const label = type === "url" ? `${shortText(value(link || {})) || "Link"} Destination` :
+      type === "alt" ? "Image Description" : detail || (
+        heading ? (all.includes("publication-hero") && heading.tagName === "h1" ? (heading.childNodes?.find((node) => node.tagName === "span") === stack.at(-1) ? "Given Name" : "Family Name") : heading.tagName === "h1" ? "Page Heading" : `Heading: ${shortText(value(heading))}`) :
+        link ? `Link Text: ${shortText(value(link) || text)}` : `Text: ${shortText(text)}`);
+    return {label, group, compact: !!heading || !!link || !!detail || type !== "html"};
+  };
+}
+
 export function copyFields(source, markdown) {
   const fields = [];
-  const add = (offset, raw, label, type, value) => fields.push({offset, raw, label, type, value});
+  const add = (offset, raw, label, type, value, group = "Page Content", compact = false) => fields.push({offset, raw, label, type, value, group, compact});
   const front = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(source);
   const bodyOffset = front?.[0].length || 0;
   if (front) {
     for (const line of front[1].matchAll(/^( *)([A-Za-z]+): ("(?:[^"\\]|\\.)*")[ \t]*$/gm)) {
       const parent = [...front[1].slice(0, line.index).matchAll(/^([A-Za-z]+):/gm)].at(-1)?.[1];
       if (!(line[1] ? (parent === "welcome" && welcomeKeys.has(line[2])) || (parent === "homeFeature" && metadataKeys.has(line[2])) : metadataKeys.has(line[2]))) continue;
-      try { add(front[0].indexOf(front[1]) + line.index + line[1].length + line[2].length + 2, line[3], line[2], "json", JSON.parse(line[3])); }
+      try { add(front[0].indexOf(front[1]) + line.index + line[1].length + line[2].length + 2, line[3], copyNames[line[2]], "json", JSON.parse(line[3]), line[1] ? (parent === "welcome" ? "Welcome Screen" : "Homepage Feature") : "Search and Sharing", line[2] !== "description"); }
       catch { /* Leave non-JSON YAML scalars unchanged. */ }
     }
     const tags = /^tags: (\[[^\r\n]*\])[ \t]*$/m.exec(front[1]);
@@ -60,6 +103,12 @@ export function copyFields(source, markdown) {
     }
   }
   const body = source.slice(bodyOffset);
+  const context = copyContext(body);
+  function bodyField(offset, raw, type) {
+    const decoded = decodeEntities(raw);
+    const field = context(offset, type, decoded);
+    if (field) add(bodyOffset + offset, raw, field.label, type === "alt" ? "html" : type, decoded, field.group, field.compact);
+  }
   const protectedToken = /<!--[\s\S]*?-->|<(script|style|pre|code)\b[^>]*>[\s\S]*?<\/\1\s*>|\{\{[\s\S]*?\}\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\}|<(?:\/?[A-Za-z][\w:-]*)(?:[^<>"']|"[^"]*"|'[^']*')*>/gi;
   let end = 0;
   function text(start, finish) {
@@ -69,7 +118,7 @@ export function copyFields(source, markdown) {
     for (const raw of paragraphs) {
       const content = raw.trim();
       if (content && /[\p{L}\p{N}]/u.test(content) && !/^(?:```|~~~)/.test(content)) {
-        add(bodyOffset + cursor + raw.indexOf(content), content, "Page Copy", markdown ? "markdown" : "html", decodeEntities(content));
+        bodyField(cursor + raw.indexOf(content), content, markdown ? "markdown" : "html");
       }
       cursor += raw.length;
     }
@@ -77,9 +126,9 @@ export function copyFields(source, markdown) {
   for (const token of body.matchAll(protectedToken)) {
     text(end, token.index);
     const attr = /^<img\b/i.test(token[0]) && /\salt="([^"{}]*)"/i.exec(token[0]);
-    if (attr) add(bodyOffset + token.index + attr.index + 6, attr[1], "Image Description", "html", decodeEntities(attr[1]));
+    if (attr) bodyField(token.index + attr.index + 6, attr[1], "alt");
     const link = !markdown && /^<a\b/i.test(token[0]) && /\shref="([^"{}]+)"/i.exec(token[0]);
-    if (link && /^(?:https:\/\/|mailto:|\/(?!\/)|#)/i.test(link[1])) add(bodyOffset + token.index + link.index + 7, link[1], "Link Destination", "url", decodeEntities(link[1]));
+    if (link && /^(?:https:\/\/|mailto:|\/(?!\/)|#)/i.test(link[1])) bodyField(token.index + link.index + 7, link[1], "url");
     end = token.index + token[0].length;
   }
   text(end, body.length);

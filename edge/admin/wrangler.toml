@@ -4,6 +4,7 @@ compatibility_date = "2026-11-27"
 workers_dev = false
 preview_urls = false
 keep_vars = true
+keep_names = false
 
 [analytics]
 binding = "ANALYTICS_SQL"

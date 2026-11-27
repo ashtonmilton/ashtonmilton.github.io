@@ -1,4 +1,5 @@
 import {parseWriting} from "./legacy.mjs";
+import {availableRelated, relatedChoices, selectedRelated} from "./related.mjs";
 
 const repository = "ashtonmilton/ashtonmilton.github.io";
 const api = `https://api.github.com/repos/${repository}`;
@@ -76,7 +77,21 @@ function base64(text) {
 }
 
 export async function preparePublication(request, now = new Date()) {
-  return publicationFromForm(await readForm(request), now);
+  const form = await readForm(request);
+  const publication = await publicationFromForm(form, now);
+  if (form.has("related-enabled")) {
+    const parsed = parseWriting(publication.markdown);
+    await updateRelated(parsed.data, form);
+    publication.markdown = publicationSource(parsed.data, parsed.originalBody);
+  }
+  return publication;
+}
+
+export async function updateRelated(data, form, ownUrl = data.permalink || data.adminArchivedUrl) {
+  if (!form.has("related-enabled")) return data;
+  try { data.relatedReading = selectedRelated(form, relatedChoices(await availableRelated(), ownUrl, data.relatedReading || [])); }
+  catch (error) { throw new PublishError(error.message, 409); }
+  return data;
 }
 
 export async function publicationFromForm(form, now = new Date(), photoData = null) {
@@ -238,7 +253,7 @@ export async function reviseWriting(request, token, now = new Date()) {
   const current = await editableWriting(slug, token);
   if (current.photos) throw new PublishError("Use the photo essay editor to revise this piece.", 409);
   if (form.get("previous") !== current.previous) throw new PublishError("This piece changed after you opened it. Reopen it before trying again.", 409);
-  const data = updateArticleFields(current.data, form, now);
+  const data = await updateRelated(updateArticleFields(current.data, form, now), form);
   if (form.has("category")) {
     const category = field(form, "category", 48);
     if (![...categories.values(), current.data.category].includes(category)) throw new PublishError("Select a valid work category.");
@@ -266,7 +281,7 @@ export async function publicationStatus(sha) {
   } catch { return null; }
 }
 
-export function publishingForm() {
+export function publishingForm(related = "") {
   return `<form action="/publish" method="post" enctype="multipart/form-data">
     <div class="form-fields">
       <label>Title<input name="title" maxlength="120" required></label>
@@ -280,7 +295,7 @@ export function publishingForm() {
       <label class="wide">Writing<textarea name="writing" rows="12" maxlength="102400" placeholder="Paste plain text or Markdown"></textarea></label>
       <label class="wide">Or Upload a File<input name="file" type="file" accept=".md,.txt,text/plain,text/markdown"><small>Markdown or plain text, up to 100 KiB.</small></label>
     </div>
-    <label class="publish-confirm"><input name="confirm" type="checkbox" value="yes" required> I approve this work for public release.</label>
+    ${related}<label class="publish-confirm"><input name="confirm" type="checkbox" value="yes" required> I approve this work for public release.</label>
     <button type="submit">Publish to Website</button>
   </form>`;
 }

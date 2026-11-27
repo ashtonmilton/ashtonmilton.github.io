@@ -8,7 +8,7 @@ export function secureResponse(response) {
     headers.set("Content-Security-Policy", [
       "default-src 'self'", "object-src 'none'", "base-uri 'none'",
       "frame-ancestors 'none'", "form-action 'self'",
-      "script-src 'self' https://static.cloudflareinsights.com",
+      "script-src 'self' https://static.cloudflareinsights.com/beacon.min.js",
       "connect-src 'self' https://cloudflareinsights.com https://ashtonmilton.net",
       "style-src 'self'", "img-src 'self' data:", "font-src 'self'"
     ].join("; "));

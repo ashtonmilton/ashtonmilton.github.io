@@ -11,6 +11,13 @@ function hasFrontMatterDate(inputPath) {
 
 module.exports = function (eleventyConfig) {
   eleventyConfig.addFilter("editorialMarkdown", (source) => editorialMarkdown.render(source || ""));
+  eleventyConfig.addFilter("suggestRelatedWork", (items, url, tags, category) => {
+    const terms = new Set((tags || []).map((tag) => String(tag).toLowerCase()));
+    return (items || []).filter((item) => item.url && item.url !== url).map((item) => ({
+      url: item.url, label: item.data.title,
+      points: (item.data.tags || []).filter((tag) => terms.has(String(tag).toLowerCase())).length * 3 + Number(item.data.category === category)
+    })).sort((a, b) => b.points - a.points).slice(0, 3);
+  });
   eleventyConfig.addFilter("photoSpreads", (photos) => {
     const groups = [];
     for (const photo of photos || []) {

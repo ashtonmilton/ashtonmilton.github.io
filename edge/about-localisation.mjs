@@ -1,6 +1,7 @@
 import locales from "./escap-locales.json" with { type: "json" };
 import { secureResponse } from "./security.mjs";
 import { recordReadership } from "./readership.mjs";
+import { addReadershipConsent, readershipConsentClient } from "./readership-consent.mjs";
 
 const destinations = new Map([
   ["CN", "/zh/about/"],
@@ -52,10 +53,22 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/_readership") return recordReadership(request, env);
+    const fallback = env.READERSHIP_ENABLED === "on" && env.READERSHIP_CONSENT_FALLBACK === "on";
+    const client = readershipConsentClient(request, url, fallback);
+    if (client) return client;
     const redirect = env.ABOUT_LOCALISATION === "on" && routeAbout(request);
     if (redirect) return redirect;
-    let origin = await fetch(request);
+    let upstream = request;
+    if (fallback && url.hostname === "ashtonmilton.net" && request.method === "GET" && /(?:\/|\.html)$/.test(url.pathname) &&
+        (request.headers.has("If-None-Match") || request.headers.has("If-Modified-Since"))) {
+      const headers = new Headers(request.headers);
+      headers.delete("If-None-Match");
+      headers.delete("If-Modified-Since");
+      upstream = new Request(request, {headers});
+    }
+    let origin = await fetch(upstream);
     if (env.SECURITY_HEADERS === "on") origin = secureResponse(origin);
+    origin = addReadershipConsent(request, url, origin, fallback);
     const preference = url.searchParams.get("lang");
     if (env.ABOUT_LOCALISATION !== "on" || url.protocol !== "https:" || url.hostname !== "ashtonmilton.net" ||
         request.method !== "GET" || editions.get(preference) !== url.pathname || !origin.ok) {

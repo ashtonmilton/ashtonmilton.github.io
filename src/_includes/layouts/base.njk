@@ -11,10 +11,11 @@
   <meta name="description" content="{{ metaDescription | escape }}" />
   {% if robots %}<meta name="robots" content="{{ robots }}" />{% elif noindex %}<meta name="robots" content="noindex" />{% endif %}
   <meta name="author" content="{{ site.author }}" />
+  {% if analytics.readershipDisabled %}<meta name="readership-edge-fallback" content="off" />{% endif %}
   {% if (analytics.token or analytics.readership) and not noindex %}
   {% if analytics.token %}<meta name="web-analytics-token" content="{{ analytics.token }}" />{% endif %}
   {% if analytics.readership %}<meta name="readership-events" content="on" />{% endif %}
-  <script defer src="/assets/js/analytics.js?v=3"></script>
+  <script defer src="/assets/js/analytics.js?v=4"></script>
   {% endif %}
   <meta name="theme-color" content="{{ site.themeColor }}" />
   <link rel="canonical" href="{{ canonicalUrl }}" />

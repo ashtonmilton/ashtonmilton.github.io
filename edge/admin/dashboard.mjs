@@ -5,6 +5,7 @@ import { readership } from "./readership.mjs";
 import {eligibleFeatured, featuredSettings, imageLimit, saveFeatured, savePhotoEssay, uploadedImages} from "./editorial.mjs";
 import {changeVisibility, listAssets, removeAsset} from "./removal.mjs";
 import {editorScript} from "./editor-script.mjs";
+import {availableRelated, relatedChoices} from "./related.mjs";
 
 const origin = "https://ashtonmilton.net";
 const adminHost = "admin.ashtonmilton.net";
@@ -17,6 +18,7 @@ const css = `*{box-sizing:border-box}body{margin:0;background:#16352c;color:#faf
 
 const publishingCss = `.form-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:1rem}.form-fields .wide{grid-column:1/-1}label{display:block;font-weight:600}input:not([type=checkbox]),textarea,select{display:block;width:100%;margin-top:.35rem;padding:.55rem;border:1px solid #faf6ed70;background:#102c25;color:#faf6ed;font:inherit}textarea{resize:vertical}.publish-confirm{margin:1.25rem 0}button{font:inherit;font-weight:600;padding:.6rem 1rem;background:#ead28d;color:#182923;border:0;cursor:pointer}button:focus-visible{outline:2px solid white;outline-offset:3px}.publish-status{border-inline-start:2px solid #ead28d;padding-inline-start:1rem}`;
 const editorCss = `[hidden]{display:none!important}.photo-edit-grid{display:grid;grid-template-columns:minmax(0,13rem) minmax(0,1fr);gap:1rem;padding:.75rem 0 1rem}.photo-preview,.media-list img{width:100%;aspect-ratio:4/3;object-fit:contain;display:block;background:#102c25}.photo-actions{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.35rem}.photo-actions button{width:2.75rem;height:2.75rem;padding:0}.photo-actions button:disabled{opacity:.45;cursor:default}[data-drag]{cursor:grab}[data-photo]{border-block-end:1px solid #faf6ed55;padding:.65rem 0}.media-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,17rem),1fr));gap:1rem}.media-list h2{overflow-wrap:anywhere}@media(max-width:40rem){.photo-edit-grid{grid-template-columns:minmax(0,1fr)}.photo-preview{max-width:20rem}}`;
+const copyEditorCss = `.copy-group,.related-editor{min-width:0;margin:1.25rem 0;padding:1rem;border:1px solid #faf6ed55}.copy-group legend,.related-editor legend{font-weight:650;padding:0 .35rem}.related-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem}.related-options{display:grid;gap:.5rem;max-height:26rem;overflow:auto;padding:.25rem}.related-option{display:flex;gap:.5rem;align-items:baseline;font-weight:400}.related-option input{flex:none}.related-option:has(input:disabled){opacity:.65}.related-caption{padding:.15rem 0 .65rem 1.5rem;font-size:.875rem}.related-caption input{margin-top:.15rem}.related-row:not(:has(input[name=related]:checked)) .related-caption{display:none}.copy-editor a:focus-visible,textarea:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #ead28d;outline-offset:2px}`;
 
 function reply(body, type, status = 200) {
   return new Response(body, { status, headers: {
@@ -64,6 +66,15 @@ function articleFields(data) {
     <label>Tags<input name="tags" maxlength="350" value="${escape(Array.isArray(data.tags) ? data.tags.join(", ") : "")}"></label>
     <label class="wide">Search Title<input name="metaTitle" maxlength="180" value="${escape(data.metaTitle || "")}"></label>
     <label class="wide">Search Description<textarea name="description" maxlength="500" rows="2">${escape(data.description || "")}</textarea></label>`;
+}
+
+async function relatedFields(data = {}) {
+  const choices = await availableRelated().then((available) => relatedChoices(available, data.permalink || data.adminArchivedUrl, data.relatedReading || [])).catch(() => null);
+  if (!choices) return '<fieldset><legend>Related Work</legend><p>The Work list is temporarily unavailable. Existing selections will be kept.</p></fieldset>';
+  return `<fieldset class="related-editor" data-related-editor><legend>Related Work</legend><input type="hidden" name="related-enabled" value="yes">
+    <p>Choose the links to show at the end. When none are selected, the site suggests related pieces.</p>
+    <div class="related-actions"><button type="button" data-related-all>Select All</button><button type="button" data-related-clear>Clear Selection</button></div>
+    <div class="related-options">${choices.map(({url,label,title,checked,available}) => `<div class="related-row"><label class="related-option"><input type="checkbox" name="related" value="${escape(url)}"${checked && available ? " checked" : ""}${available ? "" : " disabled"}> ${escape(title)}${available ? "" : " (no longer public)"}</label>${available ? `<label class="related-caption">Link Text<input name="related-label:${escape(url)}" maxlength="180" value="${escape(label)}"></label>` : ""}</div>`).join("")}</div></fieldset>`;
 }
 
 function removalForm(item) {
@@ -142,7 +153,7 @@ async function editorialPage(req, env, url) {
     return editPage(`${notice}<form method="post">${identityFields}<div class="form-fields">${articleFields(data)}
       <label class="wide">Opening Question<input name="question" required maxlength="300" value="${escape(data.question || "")}"></label><label class="wide">Introduction<textarea name="writing" rows="5">${escape(article?.writing || "")}</textarea></label></div>
       <section data-photo-editor><h2>Photographs</h2><label>Choose Images<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-new-images></label><label class="publish-confirm"><input type="checkbox" data-approve-images> These images may be uploaded to the public repository.</label><button type="button" data-upload-images>Upload Images</button><p role="status" data-photo-status></p>
-      <div data-photo-cards>${rows}</div></section>${approved}<button type="submit">${article ? "Publish Changes" : "Publish Photo Essay"}</button></form>${article ? removalForm(article) : ""}`, 200, article?.data.title || title);
+      <div data-photo-cards>${rows}</div></section>${await relatedFields(data)}${approved}<button type="submit">${article ? "Publish Changes" : "Publish Photo Essay"}</button></form>${article ? removalForm(article) : ""}`, 200, article?.data.title || title);
   } catch (error) {
     return editPage(`<p role="alert">${escape(error instanceof PublishError ? error.message : "GitHub did not confirm this request. Check the repository before submitting again.")}</p><p><a href="${escape(url.pathname + url.search)}">Return to ${escape(title)}</a></p>`, error instanceof PublishError ? error.status : 502, title);
   }
@@ -181,8 +192,14 @@ async function contentEditor(req, env, url) {
     }
     if (/^article:[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) return redirect(`/edit?post=${encodeURIComponent(id.slice(8))}`);
     const page = await openCopy(id, env.GITHUB_PUBLISH_TOKEN);
-    const fields = page.fields.map(({label, value}, i) => `<label class="wide">${escape(({metaTitle:"Search Title", description:"Search Description", summary:"Archive Summary", title:"Title", question:"Opening Question"})[label] || label)} ${label === "Page Copy" ? i + 1 : ""}<textarea name="copy-${i}" rows="${Math.min(7, Math.max(2, Math.ceil(value.length / 95)))}">${escape(value)}</textarea></label>`).join("");
-    return editPage(`${notice}<p><a href="/content">Choose Another Page</a></p><form method="post"><input type="hidden" name="id" value="${escape(id)}"><input type="hidden" name="previous" value="${page.previous}"><div class="form-fields">${fields}</div><label class="publish-confirm"><input type="checkbox" name="confirm" value="yes" required> I approve these changes for publication.</label><button type="submit">Publish Changes</button></form>`, 200, `Edit Copy: ${page.title}`);
+    const groups = new Map();
+    for (const [i, {label, value, group, compact}] of page.fields.entries()) {
+      const control = compact && value.length < 145 && !/[\r\n]/.test(value) ? `<input name="copy-${i}" value="${escape(value)}">` :
+        `<textarea name="copy-${i}" rows="${Math.min(7, Math.max(2, Math.ceil(value.length / 95)))}">${escape(value)}</textarea>`;
+      groups.set(group, (groups.get(group) || "") + `<label class="wide">${escape(label)}${control}</label>`);
+    }
+    const fields = [...groups].map(([group, controls]) => `<fieldset class="copy-group"><legend>${escape(group)}</legend><div class="form-fields">${controls}</div></fieldset>`).join("");
+    return editPage(`${notice}<p><a href="/content">Choose Another Page</a></p><form method="post" class="copy-editor"><input type="hidden" name="id" value="${escape(id)}"><input type="hidden" name="previous" value="${page.previous}">${fields}<label class="publish-confirm"><input type="checkbox" name="confirm" value="yes" required> I approve these changes for publication.</label><button type="submit">Publish Changes</button></form>`, 200, `Edit ${page.title}`);
   } catch (error) {
     if (upload && req.headers.get("Accept") === "application/json") return reply(JSON.stringify({error: error instanceof PublishError ? error.message : "GitHub did not confirm this upload."}), "application/json; charset=utf-8", error instanceof PublishError ? error.status : 502);
     return editPage(`<p>${escape(error instanceof PublishError ? error.message : "The change could not be confirmed. Check GitHub before trying again.")}</p><p><a href="${url.pathname}">Return to ${escape(title)}</a></p>`, error instanceof PublishError ? error.status : 502, title);
@@ -245,7 +262,7 @@ export default {
     if (url.host !== adminHost || url.protocol !== "https:") return reply("Not found", "text/plain; charset=utf-8", 404);
     const native = localLoginReady(env);
     if (native && req.method === "GET" && url.pathname === "/style.css") {
-      return reply(css + publishingCss + editorCss + ".login{max-width:28rem;margin:10vh auto}.login button{margin-top:1rem}.site-name{color:#ead28d}", "text/css; charset=utf-8");
+      return reply(css + publishingCss + editorCss + copyEditorCss + ".login{max-width:28rem;margin:10vh auto}.login button{margin-top:1rem}.site-name{color:#ead28d}", "text/css; charset=utf-8");
     }
     if (native && req.method === "POST" && url.pathname === "/login") {
       if (req.headers.get("Origin") !== url.origin) return reply("Same-origin submission required.", "text/plain; charset=utf-8", 403);
@@ -298,7 +315,7 @@ export default {
       }
     }
     if (req.method !== "GET") return reply("Method not allowed", "text/plain; charset=utf-8", 405);
-    if (url.pathname === "/style.css") return reply(css + publishingCss + editorCss, "text/css; charset=utf-8");
+    if (url.pathname === "/style.css") return reply(css + publishingCss + editorCss + copyEditorCss, "text/css; charset=utf-8");
     if (url.pathname === "/editor.js") return reply(editorScript, "application/javascript; charset=utf-8");
     if (url.pathname === "/edit") {
       if (!env.GITHUB_PUBLISH_TOKEN) return editPage("<p>Publishing is not configured.</p>", 503);
@@ -317,7 +334,7 @@ export default {
         return editPage(`${notice}${item.data.status === "archived" ? '<p class="publish-status">Unpublished</p>' : ""}<form method="post" action="/edit"><input type="hidden" name="slug" value="${escape(item.slug)}"><input type="hidden" name="previous" value="${escape(item.previous)}">
           <div class="form-fields">${articleFields(item.data)}<label>Category<select name="category">${categories.map((value) => option(value, value, item.data.category)).join("")}</select></label>
           <label class="wide">Writing<textarea name="writing" rows="20" required maxlength="102400">${escape(item.writing)}</textarea></label></div>
-          ${approved}<button type="submit">${item.data.status === "archived" ? "Save Unpublished Changes" : "Publish Changes"}</button></form>${removalForm(item)}`, 200, item.data.title || "Edit Work");
+          ${await relatedFields(item.data)}${approved}<button type="submit">${item.data.status === "archived" ? "Save Unpublished Changes" : "Publish Changes"}</button></form>${removalForm(item)}`, 200, item.data.title || "Edit Work");
       } catch (error) {
         const message = error instanceof PublishError ? error.message : "The work could not be opened.";
         return editPage(`<p>${escape(message)}</p><p><a href="/edit">Return to Work</a></p>`, error instanceof PublishError ? error.status : 502);
@@ -339,16 +356,17 @@ export default {
     const statsData = stats.status === "fulfilled" ? stats.value : null;
     const checked = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" }).format(new Date());
     return reply(`<!doctype html><html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-      <title>Site Administration | Ashton Milton</title><link rel="stylesheet" href="/style.css">
+      <title>Site Administration | Ashton Milton</title><link rel="stylesheet" href="/style.css"><script src="/editor.js" defer></script>
       <header><h1>Site Administration</h1><p>ashtonmilton.net · Private</p>${native ? '<form method="post" action="/logout"><button type="submit">Sign Out</button></form>' : ""}</header><main>
       <section id="publish-work"><h2>Publish Work</h2>
       ${receipt ? `<div class="publish-status"><p>${escape(deployment.value || "Submission recorded. Check GitHub Actions for deployment status.")}</p>
       <p><a href="https://github.com/ashtonmilton/ashtonmilton.github.io/commit/${commit}">View Commit</a> · <a href="${origin}/writing/${post}/">Open Public URL</a> · <a href="${workflow}">Deployment Runs</a></p></div>` : ""}
-      ${env.GITHUB_PUBLISH_TOKEN ? '<nav aria-label="Editorial tools"><p><a href="/content">Pages</a> · <a href="/edit">Edit Work</a> · <a href="/featured">Featured Work</a> · <a href="/photos">New Photo Essay</a> · <a href="/media">Public Files</a></p></nav>' + publishingForm() : "<p>Publishing is unavailable until the repository connection is configured.</p>"}</section>
+      ${env.GITHUB_PUBLISH_TOKEN ? '<nav aria-label="Editorial tools"><p><a href="/content">Pages</a> · <a href="/edit">Edit Work</a> · <a href="/featured">Featured Work</a> · <a href="/photos">New Photo Essay</a> · <a href="/media">Public Files</a></p></nav>' + publishingForm(await relatedFields()) : "<p>Publishing is unavailable until the repository connection is configured.</p>"}</section>
       <section><h2>Infrastructure</h2><dl><dt>HTTPS availability</dt><dd>${health.status === "fulfilled" ? "Public site responded successfully." : "Public site check failed."} Checked ${escape(checked)} UTC.</dd>
       <dt>Deployment and monitoring</dt><dd><a href="${workflow}">GitHub Actions</a></dd>
       <dt>DNS and security events</dt><dd><a href="https://dash.cloudflare.com/">Open Cloudflare</a></dd></dl></section>
-      <section><h2>Readership</h2><p>Browser activity from consenting readers over the last 30 days. Counts may be sampled; they do not represent unique readers or time spent reading.</p>
+      <section id="readership"><h2>Readership</h2><p>Browser activity from consenting readers over the last 30 days. Counts may be sampled; they do not represent unique readers or time spent reading.</p>
+      <p><small>Last checked ${escape(checked)} UTC.</small> <a href="/?readership=${Date.now()}#readership">Refresh Readership</a></p>
       ${Array.isArray(readerReport.value) ? `<div class="tables">${readerReport.value.map(readershipTable).join("")}</div>` : "<p>Browser activity reporting is not connected.</p>"}
       <p><a href="https://search.google.com/search-console/">Google Search Console</a> reports search queries from Google, rather than searches within Work.</p></section>
       <section><h2>Edge Traffic</h2><p>Cloudflare edge requests, last seven days plus today (UTC). Counts can be sampled and include bots. They are not unique people or browser page views.</p>
