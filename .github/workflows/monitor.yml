@@ -1,0 +1,52 @@
+name: Monitor Public Website
+
+on:
+  workflow_run:
+    workflows: [Deploy Eleventy site to GitHub Pages]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: "27 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deployment:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report failed deployment
+        env:
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          printf 'Pages deployment did not succeed. Review %s\n' "$RUN_URL"
+          exit 1
+
+  health:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check published pages and references
+        run: |
+          set -o pipefail
+          python3 scripts/audit-live.py | tee audit-live.txt
+          python3 scripts/monitor-site.py | tee site-monitor.txt
+      - name: Run Lighthouse samples
+        run: npx --yes @lhci/cli@0.16.0 autorun --config=./lighthouserc.cjs
+      - name: Save monitoring reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-monitoring
+          retention-days: 30
+          path: |
+            audit-live.txt
+            site-monitor.txt
+            lighthouse-reports/

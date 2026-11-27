@@ -1,0 +1,6 @@
+---
+permalink: /catalogue.json
+eleventyExcludeFromCollections: true
+sitemap: false
+---
+{{ publications | publicCatalogue | json | safe }}

@@ -23,9 +23,9 @@ test("Country redirects are temporary and cannot be reused across visitors", () 
   assert.deepEqual(targets, new Set(allProfiles.filter((url) => url !== "/about/")));
   for (const [country, prefix] of routes) {
     for (const method of ["GET", "HEAD"]) {
-      const response = visit(country, "/?source=link", method);
+      const response = visit(country, "/", method);
       assert.equal(response.status, 302);
-      assert.equal(response.headers.get("Location"), `https://ashtonmilton.net/${prefix}/about/?source=link`);
+      assert.equal(response.headers.get("Location"), `https://ashtonmilton.net/${prefix}/about/`);
       assert.equal(response.headers.get("Cache-Control"), "private, no-store");
     }
   }
@@ -38,6 +38,7 @@ test("Explicit choices, VPN bypass and unmapped places remain on the requested U
     }
     if (!routes.some(([code]) => code === country)) assert.equal(visit(country), null);
     assert.equal(visit(country, "/", "POST"), null);
+    assert.equal(visit(country, "/?source=shared"), null);
   }
 });
 
@@ -62,4 +63,18 @@ test("Choosing English returns the English page even without cookies", async (co
   assert.match(choice.headers.get("Set-Cookie"), /^ashton_site_language=en;/);
   assert.equal(visit("JP", "/?source=welcome", "GET", "ashton_site_language=en"), null);
   assert.equal(visit("JP", "/ja/about/", "GET", "ashton_site_language=en"), null);
+});
+
+test("Manual edition choice persists and does not override a direct language link", async (context) => {
+  context.mock.method(globalThis, "fetch", async () => new Response("Japanese profile", { headers: { "Content-Type": "text/html" } }));
+  const request = new Request("https://ashtonmilton.net/ja/about/?lang=ja");
+  const response = await worker.fetch(request, { ABOUT_LOCALISATION: "on", SECURITY_HEADERS: "on" });
+  assert.match(response.headers.get("Set-Cookie"), /^ashton_site_language=ja; Max-Age=15552000;/);
+  assert.match(response.headers.get("Content-Security-Policy"), /frame-ancestors 'none'/);
+  assert.match(response.headers.get("Content-Security-Policy"), /script-src 'self' https:\/\/static.cloudflareinsights.com/);
+  assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
+  assert.equal(visit("TH", "/", "GET", "ashton_site_language=ja").headers.get("Location"), "https://ashtonmilton.net/ja/about/");
+  assert.equal(visit("TH", "/vi/about/", "GET", "ashton_site_language=ja"), null);
+  const invalid = await worker.fetch(new Request("https://ashtonmilton.net/ja/about/?lang=th"), { ABOUT_LOCALISATION: "on" });
+  assert.equal(invalid.headers.get("Set-Cookie"), null);
 });

@@ -4,11 +4,22 @@ eleventyExcludeFromCollections: true
 sitemap: false
 ---
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 {% for item in collections.sitemap %}
   <url>
     <loc>{{ (site.url + item.url) | escape }}</loc>
     <lastmod>{{ item.data.lastmod or site.lastmod }}</lastmod>
+    {% if item.data.navKey == "about" %}
+    {% for locale in aboutAlternates %}
+    <xhtml:link rel="alternate" hreflang="{{ locale.lang }}" href="{{ site.url }}{{ locale.url }}" />
+    {% endfor %}
+    <xhtml:link rel="alternate" hreflang="x-default" href="{{ site.url }}/about/" />
+    {% endif %}
+    {% if photoFiles[item.url] %}
+    {% for photo in photoFiles[item.url] %}
+    <image:image><image:loc>{{ site.url }}{{ photo.src }}</image:loc></image:image>
+    {% endfor %}
+    {% endif %}
   </url>
 {% endfor %}
 </urlset>

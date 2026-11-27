@@ -5,7 +5,7 @@
   "description": "Static personal publication hub for Ashton Milton.",
   "packageManager": "pnpm@11.7.0",
   "scripts": {
-    "build": "node ./node_modules/@11ty/eleventy/cmd.cjs",
+    "build": "node ./node_modules/@11ty/eleventy/cmd.cjs && python3 scripts/build-search.py",
     "serve": "node ./node_modules/@11ty/eleventy/cmd.cjs --serve",
     "clean": "rm -rf _site"
   },

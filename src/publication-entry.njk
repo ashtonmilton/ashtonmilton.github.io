@@ -1,0 +1,23 @@
+---
+layout: layouts/base.njk
+pagination:
+  data: publications
+  alias: publication
+  size: 1
+  addAllPagesToCollections: true
+permalink: "{{ publication.url }}"
+---
+<article class="essay-view">
+  <header class="article-masthead"><div class="wrap article-header">
+    <a class="text-link" href="/publications/">All Publications</a>
+    <p class="eyebrow">{{ publication.type | escape }}</p><h1>{{ publication.title | escape }}</h1>
+    <p class="lede">{{ publication.description | escape }}</p>
+    <p class="entry-meta">By <a rel="author" href="/about/">{{ publication.author | escape }}</a> · <time datetime="{{ publication.date }}">{{ publication.date | displayDate }}</time></p>
+  </div></header>
+  <div class="wrap article-reading editorial-copy">
+    <a class="button" href="{{ publication.download }}" download>Download Publication</a>
+    <h2>Publication Details</h2>
+    <dl><dt>Version</dt><dd>{{ publication.version | escape }}</dd><dt>Subjects</dt><dd>{{ publication.subjects | join(", ") | escape }}</dd></dl>
+    <h2>Citation</h2><p>{{ publication.citation | escape }}</p>
+  </div>
+</article>

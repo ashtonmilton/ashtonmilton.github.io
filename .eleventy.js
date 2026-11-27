@@ -11,6 +11,13 @@ module.exports = function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy("assets");
   eleventyConfig.addPassthroughCopy({ "assets/favicon.ico": "favicon.ico" });
   eleventyConfig.addPassthroughCopy("robots.txt");
+  for (const { source, download } of require("./lib/publications.cjs")()) {
+    eleventyConfig.addPassthroughCopy({ [source]: download.slice(1) });
+  }
+  eleventyConfig.addFilter("publicCatalogue", (rows) => rows.map(({ source, ...entry }) => entry));
+  eleventyConfig.addFilter("displayDate", (date) => new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "long", timeZone: "UTC"
+  }).format(new Date(date)));
 
   eleventyConfig.addCollection("essays", function (collectionApi) {
     return collectionApi

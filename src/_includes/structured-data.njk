@@ -52,7 +52,11 @@
       "url": {{ canonicalUrl | json | safe }},
       "inLanguage": "en-GB",
       {% if shareImage %}"image": {{ socialImage | json | safe }},{% endif %}
-      {% if date and (page.inputPath | hasFrontMatterDate) %}"datePublished": {{ date | dateToIso | json | safe }},{% endif %}
+      {% if publication %}"datePublished": {{ publication.date | json | safe }},
+      "version": {{ publication.version | json | safe }},
+      "citation": {{ publication.citation | json | safe }},
+      "encoding": { "@type": "MediaObject", "contentUrl": {{ (site.url + publication.download) | json | safe }} },
+      {% elif date and (page.inputPath | hasFrontMatterDate) %}"datePublished": {{ date | dateToIso | json | safe }},{% endif %}
       {% if lastmod %}"dateModified": {{ lastmod | json | safe }},{% endif %}
       "articleSection": {{ category | json | safe }},
       "keywords": {{ tags | json | safe }}

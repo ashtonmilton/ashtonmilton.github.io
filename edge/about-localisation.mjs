@@ -1,4 +1,5 @@
 import locales from "./escap-locales.json" with { type: "json" };
+import { secureResponse } from "./security.mjs";
 
 const destinations = new Map([
   ["CN", "/zh/about/"],
@@ -7,6 +8,9 @@ const destinations = new Map([
   ["VN", "/vi/about/"],
   ...locales.flatMap(({ id, countries }) => countries.map((country) => [country, `/${id}/about/`]))
 ]);
+const editions = new Map([["en", "/"], ...[...new Set([...destinations.values(), "/prs/about/", "/ps/about/"])]
+  .map((path) => [path.split("/")[1], path])]);
+const preferenceCookie = "ashton_site_language";
 
 function afghanDestination(request) {
   const preferences = (request.headers.get("Accept-Language") || "").split(",").map((item) => {
@@ -28,14 +32,15 @@ function isHomepageRequest(request, url) {
 
 export function routeAbout(request) {
   const url = new URL(request.url);
-  if (!isHomepageRequest(request, url) || url.searchParams.get("lang") === "en") {
+  if (!isHomepageRequest(request, url) || url.search || url.hash) {
     return null;
   }
   const headers = new Headers({ "Cache-Control": "private, no-store" });
-  const cookies = (request.headers.get("Cookie") || "").split(";").map((cookie) => cookie.trim());
-  if (cookies.includes("ashton_site_language=en")) return null;
+  const preference = (request.headers.get("Cookie") || "").split(";").map((cookie) => cookie.trim())
+    .find((cookie) => cookie.startsWith(preferenceCookie + "="))?.split("=")[1];
+  if (preference === "en") return null;
   const country = request.cf?.country;
-  const path = country === "AF" ? afghanDestination(request) : destinations.get(country);
+  const path = editions.get(preference) || (country === "AF" ? afghanDestination(request) : destinations.get(country));
   if (!path) return null;
   url.pathname = path;
   headers.set("Location", url.href);
@@ -44,17 +49,19 @@ export function routeAbout(request) {
 
 export default {
   async fetch(request, env) {
-    if (env.ABOUT_LOCALISATION !== "on") return fetch(request);
-    const redirect = routeAbout(request);
+    const redirect = env.ABOUT_LOCALISATION === "on" && routeAbout(request);
     if (redirect) return redirect;
-    const origin = await fetch(request);
+    let origin = await fetch(request);
+    if (env.SECURITY_HEADERS === "on") origin = secureResponse(origin);
     const url = new URL(request.url);
-    if (!isHomepageRequest(request, url) || url.searchParams.get("lang") !== "en" || !origin.ok) {
+    const preference = url.searchParams.get("lang");
+    if (env.ABOUT_LOCALISATION !== "on" || url.protocol !== "https:" || url.hostname !== "ashtonmilton.net" ||
+        request.method !== "GET" || editions.get(preference) !== url.pathname || !origin.ok) {
       return origin;
     }
     const response = new Response(origin.body, origin);
     response.headers.set("Cache-Control", "private, no-store");
-    response.headers.append("Set-Cookie", "ashton_site_language=en; Path=/; Secure; HttpOnly; SameSite=Lax");
+    response.headers.append("Set-Cookie", `${preferenceCookie}=${preference}; Max-Age=15552000; Path=/; Secure; HttpOnly; SameSite=Lax`);
     return response;
   }
 };

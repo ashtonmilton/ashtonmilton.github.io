@@ -7,6 +7,7 @@
   min-height: calc(100svh - var(--header-height, 89px));
   background: var(--forest);
 }
+.hero-picture { display: contents; }
 .hero-art { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
 .publication-hero::before {
   content: "";
@@ -174,8 +175,26 @@
 }
 
 /* About profiles */
+.language-options { max-height: 14rem; overflow: auto; padding-inline-start: 1.25rem; }
+.language-options a { color: inherit; }
+.search-page { max-width: var(--reading); padding-block: 2rem 4rem; }
+.search-query { display: flex; gap: .75rem; margin-top: .5rem; }
+.search-query input { flex: 1; min-width: 0; }
+.search-filters { display: flex; flex-wrap: wrap; gap: .75rem 1rem; margin-top: 1rem; }
+.search-filters label { display: flex; flex-direction: column; gap: .25rem; min-width: 0; max-width: 100%; }
+.search-page input, .search-page select { background: var(--surface-deep); color: inherit; border: 1px solid var(--rule); padding: .55rem; font: inherit; }
+.search-results { list-style: none; padding: 0; }
+.search-results li { border-top: 1px solid var(--rule); padding-block: 1rem; }
+.search-results h2 { font-size: 1.25rem; margin: 0 0 .45rem; }
+.search-results p { margin: 0; }
+.search-results mark { color: #1c1c1c; background: #e0c77b; }
+.essay-content.folio figure img { display: block; width: 100%; height: auto; }
 .welcome-opening { position:relative; isolation:isolate; overflow:hidden; background:#16352c; border-bottom:1px solid #c5a25355; }
-.welcome-opening::before { content:""; position:absolute; z-index:-1; inset:0; background:linear-gradient(90deg,#102a24 0%,#102a24df 38%,#102a2460 82%),linear-gradient(0deg,#102a24 0%,transparent 52%),url('/assets/images/research-hero.jpg') center 48%/cover; }
+.welcome-opening { --welcome-art: url('/assets/images/research-hero.jpg'); }
+@supports (background-image: image-set(url("x.avif") type("image/avif"))) {
+  .welcome-opening { --welcome-art: image-set(url('/assets/images/research-hero.avif') type('image/avif'), url('/assets/images/research-hero.jpg') type('image/jpeg')); }
+}
+.welcome-opening::before { content:""; position:absolute; z-index:-1; inset:0; background:linear-gradient(90deg,#102a24 0%,#102a24df 38%,#102a2460 82%),linear-gradient(0deg,#102a24 0%,transparent 52%),var(--welcome-art) center 48%/cover; }
 .welcome-inner { min-height:min(67svh,650px); display:flex; flex-direction:column; justify-content:center; align-items:start; padding-block:3.25rem; }
 .welcome-inner h1 { font-size:5rem; line-height:1.03; margin:.35rem 0 1.1rem; color:#faf6ed; }
 .welcome-inner .eyebrow { color:#e0c77b; margin:0; }
@@ -199,7 +218,7 @@ html[lang="my"] main { font-family: "Avenir Custom", "Myanmar Sangam MN", "Noto 
   .welcome-inner h1 { font-size:3rem; }
   .welcome-lede { font-size:1rem; }
   .welcome-exit { grid-template-columns:1fr; }
-  .welcome-opening::before { background:linear-gradient(90deg,#102a24f0,#102a248b),url('/assets/images/research-hero.jpg') 65% center/cover; }
+  .welcome-opening::before { background:linear-gradient(90deg,#102a24f0,#102a248b),var(--welcome-art) 65% center/cover; }
 }
 html[lang="zh-Hans"] main { font-family: "Avenir Custom", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
 html[lang="th"] main { font-family: "Avenir Custom", "Thonburi", "Leelawadee UI", "Noto Sans Thai", sans-serif; }

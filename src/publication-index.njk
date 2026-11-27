@@ -1,0 +1,11 @@
+---
+layout: layouts/base.njk
+title: Publications
+description: Research papers, policy briefs and other work by Ashton Milton available to download.
+---
+<header class="page-masthead"><div class="wrap masthead-inner"><h1>Publications</h1><p>Research and other work available to read, cite and download.</p></div></header>
+<div class="wrap about-reading editorial-copy">
+{% for item in publications %}
+  <article><p class="eyebrow">{{ item.type | escape }}</p><h2><a href="{{ item.url }}">{{ item.title | escape }}</a></h2><p>{{ item.description | escape }}</p></article>
+{% endfor %}
+</div>

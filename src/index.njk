@@ -10,7 +10,10 @@ preloadHero: true
 scripts: ["/assets/js/hero.js"]
 ---
 <header class="publication-hero">
-  <img class="hero-art" src="/assets/images/research-hero.jpg" width="1717" height="916" alt="An illustration layers a city skyline and transport infrastructure over maps of Asia." fetchpriority="high" decoding="async">
+  <picture class="hero-picture">
+    <source srcset="/assets/images/research-hero.avif" type="image/avif">
+    <img class="hero-art" src="/assets/images/research-hero.jpg" width="1717" height="916" alt="An illustration layers a city skyline and transport infrastructure over maps of Asia." fetchpriority="high" decoding="async">
+  </picture>
   <div class="wrap hero-inner">
     <div class="hero-copy">
       <p class="eyebrow">Development · Inequality · Public Policy</p>

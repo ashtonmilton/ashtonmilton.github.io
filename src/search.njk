@@ -1,0 +1,25 @@
+---
+layout: layouts/base.njk
+permalink: /search/
+title: Search
+description: Search Ashton Milton’s essays, notes, photographs and research.
+scripts: ["/assets/js/search.js"]
+---
+<header class="page-masthead"><div class="wrap masthead-inner"><h1>Search</h1><p>Find essays, notes, photographs and research.</p></div></header>
+<div class="wrap search-page">
+  <form id="site-search" role="search" action="/search/">
+    <label for="query">Search Terms</label>
+    <div class="search-query"><input id="query" name="q" type="search" maxlength="120" autocomplete="off" list="search-suggestions"><button class="button" type="submit">Search</button></div>
+    <datalist id="search-suggestions"></datalist>
+    <div class="search-filters">
+      <label>Type <select name="type"><option value="">All Types</option></select></label>
+      <label>Subject <select name="topic"><option value="">All Subjects</option></select></label>
+      <label>Year <select name="year"><option value="">All Years</option></select></label>
+      <label>Language <select name="language"><option value="">All Languages</option></select></label>
+    </div>
+  </form>
+  <p id="search-status" role="status"></p>
+  <ol id="search-results" class="search-results"></ol>
+  <p><a class="text-link" href="/writing/">Browse Work</a></p>
+  <noscript><p>Search needs JavaScript. The work archive remains available without it.</p></noscript>
+</div>

@@ -1,0 +1,20 @@
+---
+layout: layouts/base.njk
+permalink: /privacy/
+title: Privacy
+description: How ashtonmilton.net handles language preferences, website analytics and email enquiries.
+---
+<header class="page-masthead"><div class="wrap masthead-inner"><h1>Privacy</h1><p>How this site handles language preferences, readership measurement and enquiries.</p></div></header>
+<div class="wrap about-reading editorial-copy">
+  <h2>Language Preferences</h2>
+  <p>When country routing is enabled, Cloudflare uses the country associated with your connection to suggest a profile language on the homepage. The site does not ask for your device location. When you choose a language, the site can remember that choice for up to 180 days in a first-party cookie. Clearing site cookies resets the choice.</p>
+  <h2>Readership Analytics</h2>
+  {% if analytics.token %}
+  <p>Cloudflare Web Analytics is optional and off unless you allow it. It measures page visits and performance to help improve the site. It is not used for advertising or to follow you across websites. Your choice is stored in this browser; you can change it here.</p>
+  <div id="analytics-preference" hidden><div class="button-row"><button class="button" type="button" data-choice="allow">Allow Analytics</button><button class="button" type="button" data-choice="off">Turn Analytics Off</button></div><p role="status"></p></div>
+  {% else %}
+  <p>This site does not currently load a readership analytics beacon. Its hosting and network providers may process connection data to serve and protect the site.</p>
+  {% endif %}
+  <h2>Enquiries</h2>
+  <p>Contact me at <a href="mailto:hello@ashtonmilton.net">hello@ashtonmilton.net</a> with a privacy question or to ask about information you have sent me.</p>
+</div>

@@ -6,3 +6,4 @@ preview_urls = false
 
 [vars]
 ABOUT_LOCALISATION = "off"
+SECURITY_HEADERS = "off"

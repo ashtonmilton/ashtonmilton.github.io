@@ -33,8 +33,10 @@ def audit(task):
     url, ua = task
     require(url.startswith(origin + "/"), f"Unexpected domain in sitemap: {url}")
     require(robots.can_fetch(ua, url), f"robots.txt blocks {ua}: {url}")
-    with get(url, ua) as response:
-        require(response.status == 200 and response.url == url, f"Not a direct 200: {url} ({ua})")
+    # Query-bearing homepage requests deliberately bypass automatic localisation.
+    fetch_url = url + "?source=site-audit" if url == origin + "/" else url
+    with get(fetch_url, ua) as response:
+        require(response.status == 200 and response.url == fetch_url, f"Not a direct 200: {url} ({ua})")
         page = Page(response.read().decode("utf-8"))
         directives = response.headers.get_all("X-Robots-Tag") or []
         directives.extend((page.meta.get(name) or "") for name in ("robots", *[agent.lower() for agent in agents]))

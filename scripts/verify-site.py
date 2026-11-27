@@ -36,6 +36,7 @@ class Page(HTMLParser):
         self.body_classes = set()
         self.in_feature_entry = False
         self.feature_links = []
+        self.photos = []
         self.feed(text)
 
     def handle_starttag(self, tag, attrs):
@@ -60,6 +61,8 @@ class Page(HTMLParser):
             self.ids.add(attrs["id"])
         if tag == "meta":
             self.meta[attrs.get("name", attrs.get("property"))] = attrs.get("content")
+        if tag == "img" and attrs.get("src", "").startswith("/assets/images/photo-essays/"):
+            self.photos.append(attrs)
         if tag == "link" and attrs.get("rel") == "canonical":
             self.canonicals.append(attrs["href"])
         if tag == "link" and attrs.get("rel") == "alternate" and attrs.get("hreflang"):
@@ -210,6 +213,22 @@ def main():
     locations = [node.text for node in sitemap.findall(".//s:loc", ns)]
     expected = {ORIGIN + url for url in pages if url != "/404.html"}
     require(set(locations) == expected and len(locations) == len(expected), "Sitemap does not match public pages.")
+    for entry in sitemap.findall("./{*}url"):
+        path = urlsplit(entry.findtext("{*}loc")).path
+        xml_alternates = {el.attrib["hreflang"]: el.attrib["href"] for el in entry.findall("{http://www.w3.org/1999/xhtml}link")}
+        require(xml_alternates == pages[path].alternates, f"Sitemap hreflang differs from HTML: {path}")
+        xml_photos = {el.text for el in entry.findall("{http://www.google.com/schemas/sitemap-image/1.1}image/{*}loc")}
+        require(xml_photos == {ORIGIN + img["src"] for img in pages[path].photos}, f"Sitemap photos differ from HTML: {path}")
+        for img in pages[path].photos:
+            require(int(img.get("width", "0")) > 0 and int(img.get("height", "0")) > 0 and bool(img.get("alt")), f"Missing photo dimensions or alt: {path}")
+            for candidate in img.get("srcset", "").split(","):
+                candidate_path = candidate.strip().split()[0] if candidate.strip() else ""
+                require(candidate_path.startswith("/assets/images/") and (OUTPUT / candidate_path[1:]).is_file(), f"Missing responsive image: {candidate_path}")
+    index = json.loads((OUTPUT / "assets/search-index.json").read_text())
+    require({"/zh/about/", "/ja/about/", "/th/about/"}.issubset({row["url"] for row in index}), "Search is missing a priority language.")
+    require(all(ORIGIN + row["url"] in expected for row in index), "Search index includes unlisted content.")
+    for item in json.loads((OUTPUT / "catalogue.json").read_text()):
+        require("source" not in item and item["url"] in pages and (OUTPUT / item["download"].lstrip("/")).is_file(), "Public catalogue leaks source data or omits output.")
     reachable = set()
     remaining = ["/"]
     while remaining:

@@ -74,7 +74,7 @@ Beijing Municipal Human Resources and Social Security Bureau (2026) ‘Notice on
 
 Chan, Kam Wing (2010) ‘The Household Registration System and Migrant Labour in China: Notes on a Debate’, Population and Development Review 36(2): 357–364.
 
-National Bureau of Statistics of China (2026) ‘2025 Migrant Workers Monitoring Survey Report’ (2025年农民工监测调查报告), 30 April. Available at: <https://www.stats.gov.cn/zwfwck/sjfb/202604/t20260430_1963472.html>
+National Bureau of Statistics of China (2026) ‘2025 Migrant Workers Monitoring Survey Report’ (2025年农民工监测调查报告), 30 April. Available at: <https://www.stats.gov.cn/sj/zxfb/202604/t20260430_1963472.html>
 
 Shanghai Municipal Education Commission (2026) ‘Implementation Opinions on 2026 Compulsory Education School Admissions’ (沪教委基〔2026〕9号), 24 March. Available at: <https://www.shanghai.gov.cn/gwk/search/content/ac9f198654cf469da99e1830acf3ce69>
 
