@@ -4,6 +4,22 @@ const api = "https://api.github.com/repos/ashtonmilton/ashtonmilton.github.io/";
 const publicOrigin = "https://ashtonmilton.net";
 const assetPath = /^\/assets\/uploads\/[a-z0-9]+(?:-[a-z0-9]+)*\.(?:pdf|jpe?g|png|webp)$/;
 const hash = /^[a-f0-9]{40}$/;
+const inputPath = /^(?:src\/|localisation\/|publications\/|lib\/|assets\/(?:css|js)\/)[a-zA-Z0-9_./-]+\.(?:md|njk|html|js|mjs|cjs|json|ya?ml|css)$/;
+
+function sourceReferenceMatcher(path) {
+  const target = path.replace(/\/$/, "");
+  const leaf = target.split("/").at(-1);
+  const escape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const prefix = String.raw`(?:^|[\s"'(<:=/])`;
+  const end = String.raw`(?=$|[\s"')>#?,/\]])`;
+  const full = new RegExp(prefix + escape(target.slice(1)) + end, "m");
+  const relative = target.startsWith("/assets/") ? new RegExp(prefix + escape(leaf) + end, "m") :
+    new RegExp(String.raw`(?:href\s*=\s*["']|\]\(\s*<?|\:\s+)\.{1,2}/` + escape(leaf) + end, "im");
+  return (source) => {
+    const text = source.replace(/\\\//g, "/").replace(/%2f|&#x2f;|&#47;/gi, "/");
+    return full.test(text) || relative.test(text);
+  };
+}
 
 async function github(path, token, method = "GET", value) {
   const response = await fetch(api + path, {method, headers: {Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json",
@@ -13,17 +29,45 @@ async function github(path, token, method = "GET", value) {
   return response.json();
 }
 
+async function repositoryReferences(path, token, revision) {
+  const branch = await github(`git/commits/${revision}`, token);
+  if (!hash.test(branch.tree?.sha || "")) throw new PublishError("GitHub could not identify the source tree to check.", 502);
+  const tree = await github(`git/trees/${branch.tree.sha}?recursive=1`, token);
+  if (tree.truncated || !Array.isArray(tree.tree)) throw new PublishError("The repository source list was incomplete. Removal was stopped.", 409);
+  const currentSource = path.startsWith("/writing/") ? `src/writing/essays/${path.split("/")[2]}.md` : "";
+  const sources = tree.tree.filter((entry) => entry.path !== currentSource && (inputPath.test(entry.path) || entry.path === ".eleventy.js"));
+  if (sources.length > 240 || sources.some(({type, mode, sha, size}) => type !== "blob" || mode === "120000" || !hash.test(sha || "") || size > 240_000) ||
+      sources.reduce((sum, {size}) => sum + size, 0) > 1_500_000) {
+    throw new PublishError("The source is too large for a complete check. Deploy the current Pages build before removing this item.", 409);
+  }
+  const matches = [];
+  const refersToTarget = sourceReferenceMatcher(path);
+  for (let i = 0; i < sources.length; i += 24) {
+    const batch = sources.slice(i, i + 24);
+    const fields = batch.map(({sha}, n) => `f${n}:object(oid:"${sha}"){... on Blob{oid text isTruncated}}`).join("\n");
+    const response = await fetch("https://api.github.com/graphql", {method: "POST", redirect: "manual", signal: AbortSignal.timeout(8500),
+      headers: {Authorization: `Bearer ${token}`, "Content-Type": "application/json", "User-Agent": "AshtonMilton-Admin"},
+      body: JSON.stringify({query: `{repository(owner:"ashtonmilton",name:"ashtonmilton.github.io"){${fields}}}`})});
+    const result = response.ok ? await response.json() : null;
+    if (!result?.data?.repository || result.errors?.length) throw new PublishError("GitHub did not complete the source reference check. No removal was made.", 502);
+    for (const [n, entry] of batch.entries()) {
+      const blob = result.data.repository[`f${n}`];
+      if (blob?.oid !== entry.sha || blob.isTruncated || typeof blob.text !== "string") throw new PublishError("A source file could not be checked completely. No removal was made.", 409);
+      if (refersToTarget(blob.text)) matches.push(entry.path);
+    }
+  }
+  return matches;
+}
+
 async function safelyReferenced(path, token, ignored = []) {
   const branch = await github("git/ref/heads/main", token);
   const sha = branch.object?.sha;
   if (!hash.test(sha || "")) throw new PublishError("The current repository revision could not be read.", 502);
-  const snapshot = await fetch(`${publicOrigin}/assets/editorial-references.json?revision=${sha}`, {redirect: "manual", signal: AbortSignal.timeout(5500)});
-  const data = snapshot.ok ? await snapshot.json() : null;
-  if (data?.revision !== sha || !data.references || typeof data.references !== "object") {
-    throw new PublishError("Wait for the most recent GitHub Pages deployment before removing anything. Reference checks need the published version.", 409);
-  }
-  const linked = [...new Set([...(data.references[path] || []), ...(path.endsWith("/") ? data.references[path.slice(0, -1)] || [] : [])])]
-    .filter((source) => !ignored.includes(source));
+  const data = await fetch(`${publicOrigin}/assets/editorial-references.json?revision=${sha}`, {redirect: "manual", signal: AbortSignal.timeout(5500)})
+    .then((snapshot) => snapshot.ok ? snapshot.json() : null).catch(() => null);
+  const indexed = data?.revision === sha && data.references && typeof data.references === "object";
+  const linked = indexed ? [...new Set([...(data.references[path] || []), ...(path.endsWith("/") ? data.references[path.slice(0, -1)] || [] : [])])]
+    .filter((source) => !ignored.includes(source)) : await repositoryReferences(path, token, sha);
   if (linked.length) throw new PublishError(`Still used on ${linked.join(", ")}. Remove those links or images first, then wait for the site to redeploy.`, 409);
   return sha;
 }

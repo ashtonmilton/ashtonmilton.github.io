@@ -7,14 +7,55 @@ const sha = "a".repeat(40);
 const path = "/assets/uploads/article.pdf";
 const form = new URLSearchParams({asset: path, confirm: "yes"});
 
-test("Public file removal blocks stale deployments and files used on the site", async (context) => {
-  let revision = "b".repeat(40);
+test("Public file removal blocks files used on the current published site", async (context) => {
   const fetch = context.mock.method(globalThis, "fetch", async (url) => url.includes("/git/ref/")
-    ? Response.json({object:{sha}}) : Response.json({revision, references:{[path]: ["/writing/a-piece/"]}}));
-  await assert.rejects(removeAsset(form, "token"), /most recent GitHub Pages deployment/);
-  revision = sha;
+    ? Response.json({object:{sha}}) : Response.json({revision:sha, references:{[path]: ["/writing/a-piece/"]}}));
   await assert.rejects(removeAsset(form, "token"), /Still used on \/writing\/a-piece\//);
-  assert.equal(fetch.mock.callCount(), 4);
+  assert.equal(fetch.mock.callCount(), 2);
+});
+
+test("Missing or stale Pages index can unpublish unlinked work using the exact current Git sources", async (context) => {
+  const source = '---\ntitle: "Test Note"\nstatus: "published"\npermalink: "/writing/test-note/"\n---\nTest.\n';
+  const tree = "b".repeat(40), linkBlob = "c".repeat(40), commit = "d".repeat(40);
+  const action = new URLSearchParams({slug:"test-note", action:"archive", previous:sha, confirm:"yes"});
+  let linked = true, incomplete = false, writes = 0;
+  context.mock.method(globalThis, "fetch", async (url, options) => {
+    if (url.includes("/git/ref/")) return Response.json({object:{sha}});
+    if (url.includes("editorial-references")) return new Response(null, {status:404});
+    if (url.endsWith(`git/commits/${sha}`)) return Response.json({tree:{sha:tree}});
+    if (url.includes("?recursive=1")) return Response.json({tree:[
+      {type:"blob",mode:"100644",path:"src/writing/essays/test-note.md",size:source.length,sha},
+      {type:"blob",mode:"100644",path:"src/writing/essays/another-note.md",size:63,sha:linkBlob}
+    ]});
+    if (url.endsWith("/graphql")) {
+      const {query} = JSON.parse(options.body);
+      assert.ok(query.includes(linkBlob));
+      assert.ok(!query.includes(`oid:"${sha}"`));
+      return Response.json({data:{repository:{f0:{oid:linkBlob, isTruncated:incomplete,
+        text:linked ? "[Another note](../test-note/)" : "[Unrelated note](/writing/test-note-two/)"}}}});
+    }
+    if (url.includes("contents/src/writing/essays/test-note.md")) return Response.json({sha,type:"file",encoding:"base64",size:source.length,content:Buffer.from(source).toString("base64")});
+    assert.notEqual(options.method, "GET");
+    writes++;
+    if (url.endsWith("git/trees")) {
+      const {base_tree, tree:entries} = JSON.parse(options.body);
+      assert.equal(base_tree, tree);
+      assert.equal(entries[0].path, "src/writing/essays/test-note.md");
+      assert.equal(parseWriting(entries[0].content).data.status, "archived");
+      return Response.json({sha:tree});
+    }
+    if (url.endsWith("git/commits")) return Response.json({sha:commit});
+    assert.deepEqual(JSON.parse(options.body), {sha:commit, force:false});
+    return Response.json({object:{sha:commit}});
+  });
+  await assert.rejects(changeVisibility(action, "token"), /Still used on src\/writing\/essays\/another-note\.md/);
+  linked = false;
+  incomplete = true;
+  await assert.rejects(changeVisibility(action, "token"), /could not be checked completely/);
+  assert.equal(writes, 0);
+  incomplete = false;
+  assert.equal(await changeVisibility(action, "token"), commit);
+  assert.equal(writes, 3);
 });
 
 test("Unused files are removed in a recoverable commit without force-pushing", async (context) => {
