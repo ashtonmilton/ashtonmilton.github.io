@@ -1,0 +1,9 @@
+name = "ashtonmilton-localisation"
+main = "about-localisation.mjs"
+compatibility_date = "2026-11-27"
+workers_dev = false
+preview_urls = false
+
+[vars]
+ABOUT_LOCALISATION = "onf"
+SECURITY_HEADERS = "off"
