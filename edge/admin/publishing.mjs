@@ -1,3 +1,5 @@
+import {parseWriting} from "./legacy.mjs";
+
 const repository = "ashtonmilton/ashtonmilton.github.io";
 const api = `https://api.github.com/repos/${repository}`;
 const categories = new Map([
@@ -50,7 +52,8 @@ export async function readForm(request, limit = maxRequestBytes) {
 }
 
 export function safeWriting(writing) {
-  return writing.replace(/</g, "&lt;").replace(/!\[/g, "!&#91;")
+  return writing.replace(/<(https?:\/\/[^\s<>]+)>/g, (_, url) => `[${url}](${url.replace(/\(/g, "%28").replace(/\)/g, "%29")})`)
+    .replace(/</g, "&lt;").replace(/!\[/g, "!&#91;")
     .replace(/!&#91;([^\]\r\n]+)\]\((\/assets\/uploads\/[a-z0-9]+(?:-[a-z0-9]+)*\.(?:jpe?g|png|webp))\)/g, "![$1]($2)");
 }
 
@@ -79,6 +82,8 @@ export async function preparePublication(request, now = new Date()) {
 export async function publicationFromForm(form, now = new Date(), photoData = null) {
   const title = field(form, "title", 120);
   const summary = field(form, "summary", 300);
+  const description = field(form, "description", 500, false) || summary;
+  const metaTitle = field(form, "metaTitle", 180, false);
   const type = field(form, "type", 20);
   const category = photoData ? "Photo Essays" : categories.get(type);
   if (!category) throw new PublishError("Select a work type.");
@@ -114,7 +119,7 @@ export async function publicationFromForm(form, now = new Date(), photoData = nu
     ? new Intl.DateTimeFormat("en-GB", {dateStyle: "long", timeZone: "UTC"}).format(new Date(date))
     : `${Math.max(1, Math.ceil(words / 220))}-minute read`;
   const metadata = {layout: "layouts/article.njk", templateEngineOverride: "md", dashboardEditable: true,
-    permalink: `/writing/${slug}/`, title, description: summary, summary, category, tags,
+    permalink: `/writing/${slug}/`, title, description, ...(metaTitle ? {metaTitle} : {}), summary, category, tags,
     date, lastmod: today, status: "published", readingTime, ...(photoData || {})};
   // No raw HTML or externally embedded images. Markdown links and headings still work.
   const safeBody = safeWriting(writing);
@@ -177,44 +182,73 @@ export async function editableWriting(slug, token) {
     throw new PublishError("This file cannot be edited here.", 409);
   }
   const markdown = new TextDecoder("utf-8", {fatal: true}).decode(Uint8Array.from(atob(file.content.replace(/\s/g, "")), (byte) => byte.charCodeAt(0)));
-  const match = /^---\n([^]*?)\n---\n([^]*)$/.exec(markdown);
-  if (!match || !/^dashboardEditable: true$/m.test(match[1]) || !/^templateEngineOverride: "md"$/m.test(match[1])) {
-    throw new PublishError("This piece uses the original site format and is not editable here.", 409);
+  try { return {slug, previous: file.sha, ...parseWriting(markdown)}; }
+  catch { throw new PublishError("The original publication format could not be read safely. No changes were made.", 409); }
+}
+
+export function publicationSource(data, body) {
+  const front = Object.entries(data).map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join("\n");
+  return `---\n${front}\n---\n${body}`;
+}
+
+export function updateArticleFields(data, form, now = new Date()) {
+  const title = field(form, "title", 120);
+  const summary = field(form, "summary", 300);
+  const output = {...data, title, summary};
+  const plain = [["description", 500], ["metaTitle", 180]];
+  for (const [key, length] of plain) {
+    if (!form.has(key)) continue;
+    const value = field(form, key, length, false);
+    if (value) output[key] = value;
+    else delete output[key];
   }
-  const data = Object.fromEntries(match[1].split("\n").map((line) => {
-    const i = line.indexOf(": ");
-    return [line.slice(0, i), JSON.parse(line.slice(i + 2))];
-  }));
-  return {slug, previous: file.sha, data, writing: match[2].trim()};
+  if (!form.has("description") && data.description === data.summary) output.description = summary;
+  if (form.has("tags")) output.tags = [...new Set(field(form, "tags", 350, false).split(",").map((tag) => tag.trim()).filter(Boolean))];
+  if (output.tags?.length > 8 || output.tags?.some((tag) => tag.length > 60)) throw new PublishError("Use up to eight short tags.");
+  const parts = Object.fromEntries(formatter.formatToParts(now).map(({type, value}) => [type, value]));
+  output.lastmod = `${parts.year}-${parts.month}-${parts.day}`;
+  if (form.has("date")) {
+    const date = field(form, "date", 10, false);
+    if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date || date > output.lastmod)) throw new PublishError("Use a valid past or current publication date.");
+    if (date) output.date = date;
+    else delete output.date;
+  }
+  return output;
 }
 
 export function revisePhotoMetadata(current, update, intro, now = new Date()) {
-  if (current.data.category !== "Photo Essays" || !Array.isArray(current.data.photos)) throw new PublishError("This photo essay uses a different layout.", 409);
+  if (current.data.category !== "Photo Essays" || !Array.isArray(current.photos)) throw new PublishError("This piece is not a photo essay.", 409);
   if (encoder.encode(intro).length > maxWritingBytes) throw new PublishError("The introduction is too long.", 413);
   const parts = Object.fromEntries(formatter.formatToParts(now).map(({type, value}) => [type, value]));
+  const preserve = current.legacyPhotos && intro === current.writing && JSON.stringify(update.photos) === JSON.stringify(current.photos);
   const data = {...current.data, ...update, lastmod: `${parts.year}-${parts.month}-${parts.day}`, readingTime: `${update.photos.length} photographs`};
-  const frontmatter = Object.entries(data).map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join("\n");
-  return {slug: current.slug, title: data.title, previous: current.previous, markdown: `---\n${frontmatter}\n---\n\n${safeWriting(intro)}\n`};
+  if (preserve) delete data.photos;
+  else data.templateEngineOverride = "md";
+  return {slug: current.slug, title: data.title, previous: current.previous, markdown: publicationSource(data, preserve ? current.originalBody : safeWriting(intro))};
 }
 
 export async function reviseWriting(request, token, now = new Date()) {
   const form = await readForm(request);
   const slug = field(form, "slug", 90);
-  const title = field(form, "title", 120);
-  const summary = field(form, "summary", 300);
   const writing = String(form.get("writing") || "").trim();
   if (form.get("confirm") !== "yes") throw new PublishError("Confirm that these changes may be published.");
   if (!writing || encoder.encode(writing).length > maxWritingBytes || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffd]/.test(writing)) {
     throw new PublishError("Provide UTF-8 text or Markdown no larger than 100 KiB.");
   }
   const current = await editableWriting(slug, token);
-  if (Array.isArray(current.data.photos)) throw new PublishError("Use the photo essay editor to revise this piece.", 409);
+  if (current.photos) throw new PublishError("Use the photo essay editor to revise this piece.", 409);
   if (form.get("previous") !== current.previous) throw new PublishError("This piece changed after you opened it. Reopen it before trying again.", 409);
-  const parts = Object.fromEntries(formatter.formatToParts(now).map(({type, value}) => [type, value]));
-  const data = {...current.data, title, summary, description: summary, lastmod: `${parts.year}-${parts.month}-${parts.day}`};
-  if (data.category !== "Notes") data.readingTime = `${Math.max(1, Math.ceil(writing.split(/\s+/).length / 220))}-minute read`;
-  const frontmatter = Object.entries(data).map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join("\n");
-  return {slug, title, previous: current.previous, markdown: `---\n${frontmatter}\n---\n\n${safeWriting(writing)}\n`};
+  const data = updateArticleFields(current.data, form, now);
+  if (form.has("category")) {
+    const category = field(form, "category", 48);
+    if (![...categories.values(), current.data.category].includes(category)) throw new PublishError("Select a valid work category.");
+    data.category = category;
+  }
+  const preserve = writing.replace(/\r\n/g, "\n") === current.writing.replace(/\r\n/g, "\n");
+  if (!preserve) data.templateEngineOverride = "md";
+  if (data.category === "Notes" && data.date) data.readingTime = new Intl.DateTimeFormat("en-GB", {dateStyle:"long", timeZone:"UTC"}).format(new Date(data.date));
+  else if (!preserve || data.category !== current.data.category) data.readingTime = `${Math.max(1, Math.ceil(writing.split(/\s+/).length / 220))}-minute read`;
+  return {slug, title: data.title, previous: current.previous, markdown: publicationSource(data, preserve ? current.originalBody : safeWriting(writing))};
 }
 
 export async function publicationStatus(sha) {
@@ -238,6 +272,8 @@ export function publishingForm() {
       <label>Title<input name="title" maxlength="120" required></label>
       <label>Type<select name="type"><option value="article">Article</option><option value="note">Note</option><option value="reflection">Essay or Reflection</option><option value="academic">Selected Academic Work</option></select></label>
       <label class="wide">Summary<input name="summary" maxlength="300" required></label>
+      <label class="wide">Search Title<input name="metaTitle" maxlength="180"></label>
+      <label class="wide">Search Description<textarea name="description" rows="2" maxlength="500"></textarea></label>
       <label>URL Slug<input name="slug" maxlength="90" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="Generated from title"></label>
       <label>Publication Date<input type="date" name="date"><small>Leave blank to use today’s date.</small></label>
       <label class="wide">Tags<input name="tags" maxlength="300" placeholder="Separate tags with commas"></label>

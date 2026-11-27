@@ -1,4 +1,4 @@
-import {editableWriting, listWriting, publicationFromForm, PublishError, revisePhotoMetadata, submitPublication} from "./publishing.mjs";
+import {editableWriting, listWriting, publicationFromForm, PublishError, revisePhotoMetadata, submitPublication, updateArticleFields} from "./publishing.mjs";
 
 const api = "https://api.github.com/repos/ashtonmilton/ashtonmilton.github.io/contents/";
 const featuredFile = "src/_data/homeFeatured.json";
@@ -45,6 +45,10 @@ export async function saveFeatured(form, token) {
   if (form.get("confirm") !== "yes" || new Set(values).size !== 3) throw new PublishError("Select three different pieces and confirm publication.");
   const [current, allowed] = await Promise.all([featuredSettings(token), eligibleFeatured(token), requireLayout("src/index.njk", "selected in homeFeatured or", token)]);
   if (!values.every((value) => allowed.includes(value))) throw new PublishError("Select three pieces from the archive or Policy Analysis.");
+  await Promise.all(values.filter((value) => value.startsWith("/writing/")).map(async (value) => {
+    const entry = await read(`src/writing/essays/${value.split("/")[2]}.md`, token);
+    if (!entry.ok || /^status:\s*["']?(?:archived|forthcoming|draft)\b/m.test(decoded(await entry.json()).split(/^---$/m)[1] || "")) throw new PublishError("Featured work must be publicly listed. Choose a different piece.");
+  }));
   if (form.get("previous") !== current.sha) throw new PublishError("The featured selections changed. Reopen this page before saving.", 409);
   const response = await fetch(api + featuredFile, {...options(token), method: "PUT", body: JSON.stringify({branch: "main", message: "Update homepage featured work",
     content: btoa(JSON.stringify(values, null, 2) + "\n"), ...(current.sha ? {sha: current.sha} : {})})});
@@ -70,34 +74,38 @@ function field(form, name, max, required = true) {
   return value;
 }
 
-export function photoSelection(form, available) {
+export function photoSelection(form, available, existing = []) {
   const photos = [];
   for (let i = 1; i <= imageLimit; i++) {
     const src = field(form, `photo-${i}`, 150, false);
     if (!src) continue;
-    if (!photoPath.test(src) || !available.includes(src) || photos.some((photo) => photo.src === src)) throw new PublishError(`Photo ${i} must be a different image from your uploads.`);
+    const original = existing.find((photo) => photo.src === src);
+    if ((!original && (!photoPath.test(src) || !available.includes(src))) || photos.some((photo) => photo.src === src)) throw new PublishError(`Photo ${i} must be a different image from your uploads.`);
     const width = Number(field(form, `width-${i}`, 5));
     const height = Number(field(form, `height-${i}`, 5));
     if (![width, height].every((value) => Number.isInteger(value) && value > 0 && value <= 20000)) throw new PublishError(`Enter the pixel dimensions for photo ${i}.`);
-    photos.push({src, width, height, alt: field(form, `alt-${i}`, 350), caption: field(form, `caption-${i}`, 1000), place: field(form, `place-${i}`, 100, false)});
+    const notes = String(form.get(`notes-${i}`) || "").replace(/\r\n/g, "\n").trim();
+    if (notes.length > 4000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(notes)) throw new PublishError(`The note for photo ${i} is too long or contains invalid text.`);
+    const pair = form.get(`pair-${i}`) === "yes" && !!photos.length && !photos.at(-1).pair;
+    photos.push({src, srcset: original?.srcset || "", sizes: original?.sizes || "", width, height, alt: field(form, `alt-${i}`, 350),
+      caption: field(form, `caption-${i}`, 1000), place: field(form, `place-${i}`, 100, false), pair, notes});
   }
   if (photos.length < 2) throw new PublishError("Select at least two uploaded images.");
   return photos;
 }
 
 export async function savePhotoEssay(form, token) {
-  const [images] = await Promise.all([uploadedImages(token), requireLayout("src/_includes/layouts/article.njk", "data-gallery-photo", token)]);
-  const photos = photoSelection(form, images);
+  const previous = form.get("previous");
+  const [images, current] = await Promise.all([uploadedImages(token), previous ? editableWriting(field(form, "slug", 90), token) : null,
+    requireLayout("src/_includes/layouts/article.njk", "photos | photoSpreads", token)]);
+  const photos = photoSelection(form, images, current?.photos);
   const photoData = {question: field(form, "question", 300), photos, shareImage: photos[0].src, scripts: ["/assets/js/photo-essay.js"]};
   let publication;
-  if (form.get("previous")) {
+  if (current) {
     if (form.get("confirm") !== "yes") throw new PublishError("Confirm these changes for publication.");
-    const current = await editableWriting(field(form, "slug", 90), token);
-    if (form.get("previous") !== current.previous) throw new PublishError("This photo essay changed. Reopen it before publishing.", 409);
-    const title = field(form, "title", 120);
-    const summary = field(form, "summary", 300);
+    if (previous !== current.previous) throw new PublishError("This photo essay changed. Reopen it before publishing.", 409);
     const intro = String(form.get("writing") || "").trim();
-    publication = revisePhotoMetadata(current, {...photoData, title, summary, description: summary}, intro);
+    publication = revisePhotoMetadata(current, {...updateArticleFields(current.data, form), ...photoData}, intro);
   } else {
     form.set("type", "photo");
     publication = await publicationFromForm(form, new Date(), photoData);

@@ -2,9 +2,10 @@
 from html.parser import HTMLParser
 from pathlib import Path
 import json
+import os
 import re
 import xml.etree.ElementTree as ET
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 OUTPUT = Path(__file__).resolve().parents[1] / "_site"
 
@@ -19,14 +20,19 @@ class Entry(HTMLParser):
         self.omit = 0
         self.body = []
         self.title = []
+        self.references = set()
         self.feed(html)
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        self.references.update(attrs[key] for key in ("href", "src", "poster") if attrs.get(key))
+        self.references.update(part.split()[0] for part in attrs.get("srcset", "").split(",") if part.strip())
         if tag == "html":
             self.lang = attrs.get("lang", self.lang)
         elif tag == "meta":
             key = attrs.get("name") or attrs.get("property")
+            if key in {"og:image", "twitter:image"} and attrs.get("content"):
+                self.references.add(attrs["content"])
             if key == "article:tag":
                 self.tags.append(attrs.get("content", ""))
             elif key:
@@ -61,11 +67,18 @@ def clean(parts):
 
 urls = [urlsplit(loc.text).path for loc in ET.parse(OUTPUT / "sitemap.xml").findall("./{*}url/{*}loc")]
 index = []
+references = {}
 for url in urls:
+    path = OUTPUT / url.lstrip("/") / "index.html"
+    if not path.is_file():
+        continue
+    page = Entry(path.read_text(encoding="utf-8"))
+    for href in page.references:
+        target = urlsplit(urljoin("https://ashtonmilton.net" + url, href))
+        if target.scheme in {"https", "http"} and target.hostname == "ashtonmilton.net" and target.path != url:
+            references.setdefault(target.path, set()).add(url)
     if not url.startswith("/writing/") or url == "/writing/":
         continue
-    path = OUTPUT / url.lstrip("/") / "index.html"
-    page = Entry(path.read_text(encoding="utf-8"))
     if "noindex" in page.meta.get("robots", "").lower():
         continue
     photo = "photo essays" == page.meta.get("article:section", "").lower()
@@ -77,4 +90,10 @@ for url in urls:
 
 target = OUTPUT / "assets" / "search-index.json"
 target.write_text(json.dumps(index, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+revision = os.environ.get("GITHUB_SHA", "")
+(OUTPUT / "assets/editorial-references.json").write_text(json.dumps({
+    "revision": revision if re.fullmatch(r"[a-f0-9]{40}", revision) else None,
+    "references": {path: sorted(pages) for path, pages in sorted(references.items())
+                   if path.startswith(("/writing/", "/assets/uploads/"))}
+}, separators=(",", ":")), encoding="utf-8")
 print(f"Indexed {len(index)} public pages ({target.stat().st_size:,} bytes before compression).")

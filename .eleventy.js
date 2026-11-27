@@ -1,4 +1,6 @@
 const fs = require("fs");
+const MarkdownIt = require("markdown-it");
+const editorialMarkdown = new MarkdownIt({html: false});
 
 function hasFrontMatterDate(inputPath) {
   if (!inputPath || !fs.existsSync(inputPath)) return false;
@@ -8,6 +10,15 @@ function hasFrontMatterDate(inputPath) {
 }
 
 module.exports = function (eleventyConfig) {
+  eleventyConfig.addFilter("editorialMarkdown", (source) => editorialMarkdown.render(source || ""));
+  eleventyConfig.addFilter("photoSpreads", (photos) => {
+    const groups = [];
+    for (const photo of photos || []) {
+      if (photo.pair && groups.at(-1)?.length === 1) groups.at(-1).push(photo);
+      else groups.push([photo]);
+    }
+    return groups;
+  });
   eleventyConfig.addPassthroughCopy("assets");
   eleventyConfig.addPassthroughCopy({ "assets/favicon.ico": "favicon.ico" });
   eleventyConfig.addPassthroughCopy("robots.txt");

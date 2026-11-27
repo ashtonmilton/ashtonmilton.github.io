@@ -78,6 +78,8 @@ export function copyFields(source, markdown) {
     text(end, token.index);
     const attr = /^<img\b/i.test(token[0]) && /\salt="([^"{}]*)"/i.exec(token[0]);
     if (attr) add(bodyOffset + token.index + attr.index + 6, attr[1], "Image Description", "html", decodeEntities(attr[1]));
+    const link = !markdown && /^<a\b/i.test(token[0]) && /\shref="([^"{}]+)"/i.exec(token[0]);
+    if (link && /^(?:https:\/\/|mailto:|\/(?!\/)|#)/i.test(link[1])) add(bodyOffset + token.index + link.index + 7, link[1], "Link Destination", "url", decodeEntities(link[1]));
     end = token.index + token[0].length;
   }
   text(end, body.length);
@@ -98,6 +100,8 @@ export function applyCopy(source, fields, submitted) {
     if (field.type === "json") {
       if (input.length > 500 || /[\r\n<>{}]/.test(input)) throw new PublishError("Keep metadata on one line and use plain text under 500 characters.");
       replacement = JSON.stringify(input);
+    } else if (field.type === "url") {
+      if (input.length > 500 || !/^(?:https:\/\/|mailto:|\/(?!\/)|#)[^\s<>"'\\{}]+$/i.test(input)) throw new PublishError("Use a valid HTTPS address, site path, section link or email link.");
     } else if (field.type === "tags") {
       const tags = [...new Set(input.split("\n").map((tag) => tag.trim()).filter(Boolean))];
       if (tags.length > 8 || tags.some((tag) => tag.length > 60 || /[<>{}]/.test(tag))) throw new PublishError("Use up to eight short tags, one per line.");
@@ -145,7 +149,10 @@ export async function saveCopy(id, token, form) {
 export async function uploadFile(token, form) {
   const file = form.get("file");
   if (form.get("confirm") !== "yes") throw new PublishError("Confirm that this file may be made public.");
-  const name = typeof file?.name === "string" ? file.name.toLowerCase() : "";
+  const original = typeof file?.name === "string" ? file.name.toLowerCase() : "";
+  const extension = /\.(pdf|jpg|jpeg|png|webp)$/.exec(original);
+  const stem = extension ? original.slice(0, extension.index).normalize("NFKD").replace(/\p{Mark}/gu, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "";
+  const name = stem ? stem + extension[0] : "";
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*\.(pdf|jpg|jpeg|png|webp)$/.test(name) || name.length > 100 || !file?.size || file.size > 4 * 1024 * 1024) {
     throw new PublishError("Choose a PDF, JPEG, PNG or WebP under 4 MiB. Use a filename such as policy-brief.pdf.");
   }

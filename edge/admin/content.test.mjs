@@ -5,12 +5,14 @@ import {applyCopy, copyFields, openCopy, uploadFile} from "./content.mjs";
 test("Copy edits preserve template logic, links, metadata and structure, and escape new markup", async () => {
   const source = '---\nlayout: "base"\ndescription: "Original metadata"\n---\n<h1>Original heading</h1><a href="/contact/">Contact</a>{% if true %}<p>{{ value }}</p>{% endif %}\n<img src="/test.webp" alt="A photo.">';
   const fields = copyFields(source, false);
-  assert.deepEqual(fields.map(({value}) => value), ["Original metadata", "Original heading", "Contact", "A photo."]);
+  assert.deepEqual(fields.map(({value}) => value), ["Original metadata", "Original heading", "/contact/", "Contact", "A photo."]);
   const form = new Map(fields.map(({value}, i) => [`copy-${i}`, value]));
   form.set("copy-1", 'New <script> {{ value }}');
   const output = applyCopy(source, fields, form);
   assert.match(output, /<h1>New &lt;script&gt; &#123;&#123; value &#125;&#125;<\/h1>/);
   assert.ok(output.includes('<a href="/contact/">Contact</a>{% if true %}<p>{{ value }}</p>{% endif %}'));
+  form.set("copy-2", "javascript:alert(1)");
+  assert.throws(() => applyCopy(source, fields, form), /valid HTTPS address/);
   await assert.rejects(openCopy("article:../../arbitrary", "unused"), /not available/);
 });
 

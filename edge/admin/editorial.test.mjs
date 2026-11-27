@@ -25,7 +25,7 @@ test("Photo publication creates one article file after checking the live templat
   const api = context.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(options.redirect, "manual");
     if (options.method === "PUT") return Response.json({commit: {sha}}, {status: 201});
-    if (url.includes("article.njk")) return Response.json(buf("data-gallery-photo"));
+    if (url.includes("article.njk")) return Response.json(buf("photos | photoSpreads"));
     if (url.includes("/assets/uploads")) return Response.json(candidateFiles([first, second]));
     throw new Error("Unexpected endpoint");
   });
@@ -51,6 +51,7 @@ test("Featured Work publishes exactly three eligible paths in the requested orde
     }
     if (url.includes("homeFeatured.json")) return new Response(null, {status: 404});
     if (url.includes("index.njk")) return Response.json(buf("selected in homeFeatured or"));
+    if (url.includes(".md?ref=main")) return Response.json(buf("---\nstatus: published\n---\nText"));
     return Response.json(candidateFiles(["/an-essay.md", "/a-note.md"]));
   });
   const form = new URLSearchParams({"slot-1":paths[0], "slot-2":paths[1], "slot-3":paths[2], previous:"", confirm:"yes"});

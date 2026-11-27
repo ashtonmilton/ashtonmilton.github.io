@@ -24,11 +24,14 @@ navKey: writing
 {% if question %}<nav class="folio-controls" aria-label="Photo essay spreads" hidden><button type="button">← Previous</button><span aria-live="polite"></span><button type="button">Next →</button></nav>{% endif %}
 {{ content | safe }}
 {% if photos %}
-{% for photo in photos %}
-<div class="folio-leaf"><div class="spread single"><figure>
-  <img src="{{ photo.src | escape }}" width="{{ photo.width }}" height="{{ photo.height }}" alt="{{ photo.alt | escape }}" data-gallery-photo decoding="async"{% if not loop.first %} loading="lazy"{% else %} fetchpriority="high"{% endif %}>
+{% for spread in photos | photoSpreads %}
+{% set firstSpread = loop.first %}
+<div class="folio-leaf"><div class="spread {% if spread | length == 2 %}pair{% else %}single{% endif %}">
+{% for photo in spread %}<figure>
+  <img src="{{ photo.src | escape }}"{% if photo.srcset %} srcset="{{ photo.srcset | escape }}" sizes="{{ photo.sizes | escape }}"{% endif %} width="{{ photo.width }}" height="{{ photo.height }}" alt="{{ photo.alt | escape }}" data-gallery-photo decoding="async"{% if firstSpread and loop.first %} fetchpriority="high"{% else %} loading="lazy"{% endif %}>
   <figcaption>{% if photo.place %}<strong>{{ photo.place | escape }}</strong> {% endif %}{{ photo.caption | escape }}</figcaption>
-</figure></div></div>
+</figure>{% endfor %}</div>
+{% for photo in spread %}{% if photo.notes %}{{ photo.notes | editorialMarkdown | safe }}{% endif %}{% endfor %}</div>
 {% endfor %}
 {% endif %}
     </div>

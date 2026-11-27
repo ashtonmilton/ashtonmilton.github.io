@@ -122,17 +122,20 @@ test("Revision preserves metadata and URL and guards against overwriting a newer
   assert.match(markdown, /Revised &lt;script>/);
 });
 
-test("Edit Site Copy loads using Worker-supported fetch options even if archive access is denied", async (context) => {
+test("Pages and the unified Work list remain usable with Worker-supported fetch options", async (context) => {
   let status = 200;
   context.mock.method(globalThis, "fetch", async (url, options) => {
     if (options.redirect !== "manual") throw new TypeError("Unsupported Workers redirect mode");
+    if (url.endsWith("assets/search-index.json")) return Response.json([{url:"/writing/an-essay/", title:"An Essay"}]);
     assert.match(url, /\/contents\/src\/writing\/essays\?ref=main$/);
     return Response.json([{type: "file", name: "an-essay.md"}], {status});
   });
   const load = () => dashboard.fetch(new Request(origin + "/content"), {...env, GITHUB_PUBLISH_TOKEN: "fixture"}, identity("owner@example.test"));
-  assert.match(await (await load()).text(), /article%3Aan-essay/);
+  assert.match(await (await load()).text(), /Edit Articles, Notes and Photo Essays/);
+  const work = () => dashboard.fetch(new Request(origin + "/edit"), {...env, GITHUB_PUBLISH_TOKEN:"fixture"}, identity("owner@example.test"));
+  assert.match(await (await work()).text(), /<a href="\/edit\?post=an-essay">An Essay/);
   status = 403;
   const html = await (await load()).text();
   assert.match(html, /Main Pages/);
-  assert.match(html, /GitHub denied access to the work archive \(403\)/);
+  assert.match(await (await work()).text(), /GitHub denied access to the work archive \(403\)/);
 });
