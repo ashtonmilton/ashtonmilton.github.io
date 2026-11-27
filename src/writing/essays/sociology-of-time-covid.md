@@ -9,7 +9,7 @@ relatedReading:
     label: "Is the Home a Space of Unequal Gender Relations?"
   - url: "/writing/efficiency-vs-quality-of-life/"
     label: "The Difference Between Efficiency and Quality of Life"
-summary: "Public-health restrictions disrupted routines across society, yet temporal autonomy—the capacity to wait, work remotely, absorb care shocks and plan ahead—remained stratified by class, gender and institutional design."
+summary: "Public-health restrictions disrupted routines across society, yet temporal autonomy - the capacity to wait, work remotely, absorb care shocks and plan ahead - remained stratified by class, gender and institutional design."
 category: "Selected academic work"
 tags: ["Inequality", "Time", "COVID-19"]
 status: "published"
