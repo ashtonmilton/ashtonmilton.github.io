@@ -1,1 +1,1 @@
-import("./readership-browser.js?v=2").then(({startReadership}) => startReadership()).catch(() => {});
+import("./readership-browser.js?v=3").then(({startReadership}) => startReadership()).catch(() => {});

@@ -9,7 +9,8 @@ export function startReadership(defaultBasic = false) {
   const key = readership ? "ashton_readership_preference_v1" : "ashton_analytics_preference";
   let preference;
   try { preference = localStorage.getItem(key); } catch { return; }
-  const basic = () => readership && !privateSignal && (preference === "allow" || (defaultBasic && preference !== "off"));
+  const basic = () => readership && !privateSignal && (preference === "allow" || preference === "basic" || (defaultBasic && preference !== "off"));
+  const active = () => !privateSignal && (basic() || preference === "allow");
 
   function send(kind, path, detail) {
     if (!basic() || (kind === "search" && preference !== "allow")) return;
@@ -62,12 +63,19 @@ export function startReadership(defaultBasic = false) {
   if (!controls) return;
   controls.hidden = false;
   const status = controls.querySelector("[role=status]");
+  const toggle = controls.querySelector('[role="switch"]');
   function updateControls() {
-    const active = !privateSignal && (basic() || preference === "allow");
-    controls.querySelector('[data-choice="off"]').hidden = !active;
-    controls.querySelector('[data-choice="allow"]').hidden = privateSignal || preference === "allow";
-    status.textContent = privateSignal ? "Analytics is off because of your browser privacy settings." :
-      preference === "allow" ? "Analytics is on for this browser." : basic() ? "Basic readership statistics are on." : "Analytics is off for this browser.";
+    if (toggle) {
+      toggle.setAttribute("aria-checked", String(active()));
+      if (privateSignal) {
+        toggle.setAttribute("aria-disabled", "true");
+        toggle.title = "Analytics is off because of your browser privacy settings.";
+      }
+    } else {
+      controls.querySelector('[data-choice="off"]').hidden = !active();
+      controls.querySelector('[data-choice="allow"]').hidden = privateSignal || preference === "allow";
+      if (status) status.textContent = active() ? "Analytics is on for this browser." : "Analytics is off for this browser.";
+    }
   }
   updateControls();
   if (basic() || (!privateSignal && preference === "allow")) start();
@@ -76,12 +84,13 @@ export function startReadership(defaultBasic = false) {
       const details = document.querySelector("details#privacy");
       if (details) details.open = true;
     }
-    const choice = event.target.closest("button[data-choice]")?.dataset.choice;
+    const choice = toggle && event.target.closest('[role="switch"]') === toggle ?
+      active() ? "off" : readership ? "basic" : "allow" : event.target.closest("button[data-choice]")?.dataset.choice;
     if (!choice || privateSignal) return;
     try { localStorage.setItem(key, choice); } catch { return; }
     preference = choice;
     updateControls();
     if (choice === "off" && document.querySelector("#web-analytics-beacon")) location.reload();
-    if (choice === "allow") start();
+    if (choice !== "off") start();
   });
 }

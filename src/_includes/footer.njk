@@ -7,18 +7,18 @@
         {% if publications.length %}<a href="/publications/">Publications</a>{% endif %}
       </nav>
       <small>© 2026 Ashton Milton</small>
+      <div class="footer-preferences">
+      {% if analytics.token or analytics.readership %}
+      <div id="analytics-preference" hidden><button type="button" role="switch" aria-checked="false" aria-describedby="analytics-notice">Analytics <span class="analytics-track" aria-hidden="true"></span></button></div>
+      {% endif %}
       <details class="footer-privacy" id="privacy">
         <summary>Privacy</summary>
         <p>Cloudflare and GitHub process connection data to serve and protect this site. The country of your connection may determine the profile shown on the homepage. Choosing English can be remembered for up to 180 days. <a href="mailto:hello@ashtonmilton.net">Privacy enquiries</a>.</p>
         {% if analytics.token or analytics.readership %}
-        <p>Optional analytics measures page views{% if analytics.readership %}, referral sources, country, device and browser groups, clicks and broad search topics, not the words you type{% endif %}{% if analytics.token %}, and site performance{% endif %}. It is off unless you allow it; change your choice here at any time.</p>
-        <div id="analytics-preference" hidden>
-          <button type="button" data-choice="allow">Allow analytics</button>
-          <button type="button" data-choice="off">Turn off analytics</button>
-          <p role="status"></p>
-        </div>
+        <p id="analytics-notice">Analytics helps improve the site by measuring page views{% if analytics.readership %}, publication clicks and downloads{% elif analytics.token %} and site performance{% endif %}. It is off by default on this version of the site. Change your choice using the Analytics switch beside Privacy.</p>
         {% endif %}
       </details>
+      </div>
     </div>
   </div>
 </footer>

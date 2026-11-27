@@ -15,14 +15,14 @@ test("The opt-in script is only served on the public host and non-HTML responses
 });
 
 test("Basic readership defaults on only in the UK and honours opt-out and browser privacy", async () => {
-  const url = new URL("https://ashtonmilton.net/_readership-client.js?v=3");
+  const url = new URL("https://ashtonmilton.net/_readership-client.js?v=4");
   async function run(country, initial, globalPrivacyControl = false) {
     const request = Object.assign(new Request(url), {cf:{country}});
     const response = readershipConsentClient(request,url,true,true);
     assert.equal(response.headers.get("Cache-Control"),"private, no-store");
-    const events = [], listeners = {}, status = {}, button = {};
+    const events = [], listeners = {}, attrs = {}, button = {setAttribute:(k,v) => {attrs[k] = v;}};
     let preference = initial;
-    const controls = {dataset:{},querySelector: (s) => s === "[role=status]" ? status : button,
+    const controls = {dataset:{},querySelector: (s) => s === '[role="switch"]' ? button : null,
       addEventListener: (k, fn) => {listeners[k] = fn;}};
     runInNewContext(await response.text(), {
       URL, navigator:{globalPrivacyControl}, location:{pathname:"/writing/"},
@@ -32,15 +32,23 @@ test("Basic readership defaults on only in the UK and honours opt-out and browse
       fetch:async (_, request) => {events.push(JSON.parse(request.body)); return {ok:true};}
     });
     listeners["work-search-topic"]({detail:"Asia"});
-    return {events,optOut() {listeners.click({target:{closest:(s) => s === "button[data-choice]" ? {dataset:{choice:"off"}} : null}});
+    return {events,attrs,toggle() {listeners.click({target:{closest:(s) => s === '[role="switch"]' ? button : null}});
       listeners["work-search-topic"]({detail:"Education"}); return preference;}};
   }
   const british = await run("GB");
   assert.deepEqual(british.events.map(({kind})=>kind),["page"]);
-  assert.equal(british.optOut(),"off");
+  assert.equal(british.attrs["aria-checked"],"true");
+  assert.equal(british.toggle(),"off");
+  assert.equal(british.attrs["aria-checked"],"false");
   assert.equal(british.events.length,1);
   assert.equal((await run("GB","off")).events.length,0);
-  assert.equal((await run("GB",null,true)).events.length,0);
+  const protectedBrowser = await run("GB",null,true);
+  assert.equal(protectedBrowser.attrs["aria-disabled"],"true");
+  protectedBrowser.toggle();
+  assert.equal(protectedBrowser.events.length,0);
   assert.equal((await run("FR")).events.length,0);
   assert.deepEqual((await run("FR","allow")).events.map(({kind})=>kind),["page","search"]);
+  const french = await run("FR");
+  assert.equal(french.toggle(),"basic");
+  assert.deepEqual(french.events.map(({kind})=>kind),["page"]);
 });
