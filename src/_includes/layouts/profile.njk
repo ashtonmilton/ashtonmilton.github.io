@@ -16,7 +16,7 @@ lastmod: "2026-11-27"
 {{ content | safe }}
 {% if welcome %}
 <section class="wrap welcome-exit">
-  <div><h2>{{ welcome.exitTitle }}</h2><p>{{ welcome.exitDescription }}</p></div>
+  <div><h2>{{ welcome.exitTitle }}</h2>{% if welcome.exitDescription %}<p>{{ welcome.exitDescription }}</p>{% endif %}</div>
   <a class="button" href="/?lang=en" hreflang="en-GB">{{ welcome.exitLink }}</a>
 </section>
 {% endif %}

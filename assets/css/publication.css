@@ -187,6 +187,13 @@
 .welcome-exit .button { justify-self:start; }
 .local-edition .site-header .nav { justify-content:space-between; }
 .local-edition .site-header .nav-links { display:none; }
+[dir="rtl"] .welcome-opening::before { transform: scaleX(-1); }
+[dir="rtl"] .welcome-inner h1, [dir="rtl"] .about-reading [lang="en-GB"] { unicode-bidi: isolate; }
+html[lang="dv"] main { font-family: "Avenir Custom", "Noto Sans Thaana", "MV Boli", sans-serif; }
+html[lang="dz"] main { font-family: "Avenir Custom", "Kailasa", "Microsoft Himalaya", "Noto Serif Tibetan", sans-serif; }
+html[lang="km"] main { font-family: "Avenir Custom", "Khmer Sangam MN", "Noto Sans Khmer", sans-serif; }
+html[lang="lo"] main { font-family: "Avenir Custom", "Lao Sangam MN", "Noto Sans Lao", sans-serif; }
+html[lang="my"] main { font-family: "Avenir Custom", "Myanmar Sangam MN", "Noto Sans Myanmar", sans-serif; }
 @media(max-width:700px) {
   .welcome-inner { min-height:58svh; padding-block:2.5rem; }
   .welcome-inner h1 { font-size:3rem; }

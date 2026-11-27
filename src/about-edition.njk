@@ -1,0 +1,32 @@
+---
+layout: layouts/profile.njk
+pagination:
+  data: escapEditions
+  size: 1
+  alias: edition
+  addAllPagesToCollections: true
+permalink: "{{ edition.url }}"
+---
+<div class="wrap about-reading editorial-copy" id="profile" tabindex="-1">
+<p>{{ edition.background }}</p>
+<p>{{ edition.formats }}</p>
+<h2>{{ edition.education }}</h2>
+<h3 lang="en-GB">{{ profileFacts.qmul }}</h3><p>{{ edition.degree }} · <bdi>{{ profileFacts.qmulYears }}</bdi></p>
+<h3 lang="en-GB">{{ profileFacts.waseda }}</h3><p>{{ edition.exchange }} · <bdi>{{ profileFacts.wasedaYears }}</bdi></p>
+<h2>{{ edition.governance }}</h2>
+<p><cite lang="en-GB">{{ profileFacts.dissertation }}</cite> · <bdi>{{ profileFacts.researchYears }}</bdi></p>
+<p>{{ edition.research }}</p>
+<h3>{{ edition.wageLabel }}</h3><p lang="en-GB">{{ profileFacts.livingWage }}</p>
+<p>{{ edition.wage }}</p>
+{% for role in profileFacts.roles %}
+  {% if loop.index0 == 1 %}<a class="button" href="/research/" hreflang="en-GB">{{ edition.researchLink }}</a><h2>{{ edition.journalism }}</h2>{% endif %}
+  {% if loop.index0 == 3 %}<h2>{{ edition.operations }}</h2>{% endif %}
+  <h3 lang="en-GB">{{ role.name }}</h3>
+  <p>{{ edition.jobs[loop.index0][0] }} · <bdi>{{ role.period }}</bdi></p>
+  <p>{{ edition.jobs[loop.index0][1] }}</p>
+{% endfor %}
+<h2>{{ edition.skillsLabel }}</h2>
+<p>{{ edition.skills }}</p>
+<p>{{ edition.languages }}</p>
+<a class="button" href="/writing/" hreflang="en-GB">{{ edition.workLink }}</a>
+</div>

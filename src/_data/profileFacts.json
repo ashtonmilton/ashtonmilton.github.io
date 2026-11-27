@@ -1,0 +1,16 @@
+{
+  "qmul": "Queen Mary University of London",
+  "waseda": "Waseda University, Tokyo",
+  "qmulYears": "2023–2027",
+  "wasedaYears": "2025–2026",
+  "dissertation": "Rising Powers, Unequal Lives",
+  "researchYears": "2010–2025",
+  "livingWage": "Citizens UK · Queen Mary University of London · 2024",
+  "roles": [
+    {"name": "Capital City College Group", "period": "2020.11–2022.06"},
+    {"name": "Luxuriate Life Magazine", "period": "2023.06–2023.12"},
+    {"name": "Newsquest Media Group", "period": "2020.10–2021.03"},
+    {"name": "Gouqi London", "period": "2023.01–2023.09"},
+    {"name": "Lantana", "period": "2022.08–2022.12"}
+  ]
+}

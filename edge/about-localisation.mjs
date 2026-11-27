@@ -1,9 +1,25 @@
+import locales from "./escap-locales.json" with { type: "json" };
+
 const destinations = new Map([
   ["CN", "/zh/about/"],
   ["TH", "/th/about/"],
   ["JP", "/ja/about/"],
-  ["VN", "/vi/about/"]
+  ["VN", "/vi/about/"],
+  ...locales.flatMap(({ id, countries }) => countries.map((country) => [country, `/${id}/about/`]))
 ]);
+
+function afghanDestination(request) {
+  const preferences = (request.headers.get("Accept-Language") || "").split(",").map((item) => {
+    const [raw, quality] = item.trim().toLowerCase().split(";q=");
+    return { lang: raw, q: quality === undefined ? 1 : Number(quality) };
+  }).filter(({ q }) => q > 0 && q <= 1).sort((a, b) => b.q - a.q);
+  for (const { lang } of preferences) {
+    if (lang === "fa-af" || /^prs(?:-|$)/.test(lang)) return "/prs/about/";
+    if (/^ps(?:-|$)/.test(lang)) return "/ps/about/";
+    if (/^en(?:-|$)/.test(lang)) return null;
+  }
+  return null;
+}
 
 function isHomepageRequest(request, url) {
   return url.hostname === "ashtonmilton.net" && url.pathname === "/" &&
@@ -18,7 +34,8 @@ export function routeAbout(request) {
   const headers = new Headers({ "Cache-Control": "private, no-store" });
   const cookies = (request.headers.get("Cookie") || "").split(";").map((cookie) => cookie.trim());
   if (cookies.includes("ashton_site_language=en")) return null;
-  const path = destinations.get(request.cf?.country);
+  const country = request.cf?.country;
+  const path = country === "AF" ? afghanDestination(request) : destinations.get(country);
   if (!path) return null;
   url.pathname = path;
   headers.set("Location", url.href);

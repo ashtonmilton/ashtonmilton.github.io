@@ -108,6 +108,8 @@ def main():
     destinations = {url: set() for url in pages}
     article_count = 0
     profiles = json.loads((ROOT / "src/_data/aboutLocales.json").read_text())
+    for entry in json.loads((ROOT / "edge/escap-locales.json").read_text()):
+        profiles.append({**entry, "url": f"/{entry['id']}/about/"})
     by_url = {profile["url"]: profile for profile in profiles}
     alternates = {profile["lang"]: ORIGIN + profile["url"] for profile in profiles}
     alternates["x-default"] = ORIGIN + "/about/"
