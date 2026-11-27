@@ -1,7 +1,7 @@
 module.exports = {
   ci: {
     collect: {
-      url: ["/?source=lab", "/writing/", "/writing/on-display/", "/search/", "/zh/about/"]
+      url: ["/?source=lab", "/writing/", "/writing/on-display/", "/zh/about/"]
         .map((path) => (process.env.LIGHTHOUSE_ORIGIN || "https://ashtonmilton.net") + path),
       numberOfRuns: 3,
       settings: { onlyCategories: ["performance", "accessibility", "best-practices", "seo"] }

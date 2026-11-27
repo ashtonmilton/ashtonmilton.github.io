@@ -6,7 +6,7 @@ description: "Essays, policy explainers, notes and photo essays on cities, inequ
 navKey: "writing"
 lastmod: "2026-11-16"
 sitemapOrder: 2
-scripts: ["/assets/js/archive.js"]
+scripts: ["/assets/js/archive.js?v=2"]
 ---
 <header class="page-masthead">
   <div class="wrap masthead-inner">
@@ -15,15 +15,19 @@ scripts: ["/assets/js/archive.js"]
   </div>
 </header>
 <div class="wrap archive-layout">
-  <div class="archive-tools" role="group" aria-label="Work categories" hidden>
+  <div class="archive-tools" hidden>
+    <div class="archive-filters" role="group" aria-label="Work categories">
     <button class="filter-button active" type="button" data-filter="all" aria-pressed="true">All Work</button>
     <button class="filter-button" type="button" data-filter="Independent work" aria-pressed="false">Independent Work</button>
     <button class="filter-button" type="button" data-filter="Notes" aria-pressed="false">Notes</button>
     <button class="filter-button" type="button" data-filter="Photo Essays" aria-pressed="false">Photo Essays</button>
     <button class="filter-button" type="button" data-filter="Essays &amp; reflections" aria-pressed="false">Essays &amp; Reflections</button>
     <button class="filter-button" type="button" data-filter="Selected academic work" aria-pressed="false">Selected Academic Work</button>
+    </div>
+    <input class="archive-search" id="work-search" type="search" aria-label="Search work" placeholder="Search work" maxlength="120" autocomplete="off">
   </div>
   <div class="archive-results">
+    <p class="archive-count" role="status" data-search-status></p>
     {% for category in ["Independent work", "Notes", "Photo Essays", "Essays & reflections", "Selected academic work"] %}
     <section class="archive-group" data-archive-group>
       <header class="archive-group-header">
@@ -42,6 +46,6 @@ scripts: ["/assets/js/archive.js"]
       </div>
     </section>
     {% endfor %}
-    <p class="empty-state" data-empty-state hidden>There are no pieces in this category yet.</p>
+    <p class="empty-state" data-empty-state hidden>No matching work.</p>
   </div>
 </div>

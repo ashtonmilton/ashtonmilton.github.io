@@ -63,7 +63,12 @@
 .page-masthead h1 { font-size: 4rem; line-height: 1.12; }
 .masthead-inner > p { font-size: 1.0625rem; color: var(--muted); max-width: 62ch; }
 .archive-layout { padding-block: 34px 80px; }
-.archive-tools { display: flex; flex-wrap: wrap; gap: 5px 32px; border-bottom: 1px solid var(--rule); margin-bottom: 48px; }
+.archive-tools { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 4px 20px; border-bottom: 1px solid var(--rule); margin-bottom: 48px; }
+.archive-filters { display: flex; flex-wrap: wrap; gap: 4px clamp(12px, 1.65vw, 26px); }
+.archive-search { margin: 0 0 .5rem auto; width: min(100%, 9rem); padding: .45rem .6rem; font: inherit; font-size: .875rem; border: 1px solid var(--rule); background: var(--surface-deep); color: var(--white); }
+.archive-search::placeholder { color: var(--muted); }
+.archive-count { font-size: .875rem; color: var(--muted); }
+.archive-count:empty { display: none; }
 .filter-button { min-height: 50px; padding: 5px 0 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--white); font-size: 0.875rem; text-align: left; cursor: pointer; }
 .filter-button[aria-pressed="true"] { border-bottom-color: var(--gold); }
 .filter-button:hover { text-decoration: underline; text-decoration-color: var(--gold); }
@@ -149,7 +154,8 @@
   .page-masthead h1 { font-size: 2.75rem; }
   .masthead-inner > p { font-size: 1rem; }
   .archive-layout { padding-block: 20px 44px; }
-  .archive-tools { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px 14px; margin-bottom: 30px; }
+  .archive-tools { align-items: start; margin-bottom: 30px; }
+  .archive-filters { gap: 4px 14px; }
   .filter-button { min-height: 50px; font-size: 0.875rem; line-height: 1.5; }
   .archive-group { grid-template-columns: minmax(0,1fr); gap: 24px; padding-top: 24px; }
   .archive-group + .archive-group { margin-top: 32px; }
@@ -175,19 +181,11 @@
 }
 
 /* About profiles */
-.language-options { max-height: 14rem; overflow: auto; padding-inline-start: 1.25rem; }
-.language-options a { color: inherit; }
-.search-page { max-width: var(--reading); padding-block: 2rem 4rem; }
-.search-query { display: flex; gap: .75rem; margin-top: .5rem; }
-.search-query input { flex: 1; min-width: 0; }
-.search-filters { display: flex; flex-wrap: wrap; gap: .75rem 1rem; margin-top: 1rem; }
-.search-filters label { display: flex; flex-direction: column; gap: .25rem; min-width: 0; max-width: 100%; }
-.search-page input, .search-page select { background: var(--surface-deep); color: inherit; border: 1px solid var(--rule); padding: .55rem; font: inherit; }
-.search-results { list-style: none; padding: 0; }
-.search-results li { border-top: 1px solid var(--rule); padding-block: 1rem; }
-.search-results h2 { font-size: 1.25rem; margin: 0 0 .45rem; }
-.search-results p { margin: 0; }
-.search-results mark { color: #1c1c1c; background: #e0c77b; }
+.footer-privacy { font-size: .8125rem; max-width: 34rem; }
+.footer-privacy summary { cursor: pointer; }
+.footer-privacy p { line-height: 1.5; margin: .45rem 0; }
+.footer-privacy a { text-decoration: underline; }
+.footer-privacy button { font: inherit; color: inherit; background: transparent; border: 1px solid var(--rule); padding: .3rem .45rem; cursor: pointer; }
 .essay-content.folio figure img { display: block; width: 100%; height: auto; }
 .welcome-opening { position:relative; isolation:isolate; overflow:hidden; background:#16352c; border-bottom:1px solid #c5a25355; }
 .welcome-opening { --welcome-art: url('/assets/images/research-hero.jpg'); }

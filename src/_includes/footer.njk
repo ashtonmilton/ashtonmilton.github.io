@@ -4,17 +4,21 @@
     <div class="footer-end">
       <nav class="footer-links" aria-label="Footer links">
         <a href="/writing/">Work</a><a href="/research/">Research</a><a href="/policy-analysis/">Policy Analysis</a><a href="/about/">About</a><a href="/contact/">Contact</a>
-        <a href="/search/">Search</a><a href="/privacy/">Privacy</a>
         {% if publications.length %}<a href="/publications/">Publications</a>{% endif %}
       </nav>
       <small>© 2026 Ashton Milton</small>
-      {% if navKey == "home" or welcome %}
-      <details><summary>Profile Languages</summary><ul class="language-options">
-      {% for locale in aboutAlternates %}
-        <li><a href="{{ locale.choice }}" lang="{{ locale.lang }}" hreflang="{{ locale.lang }}">{{ locale.label }}</a></li>
-      {% endfor %}
-      </ul></details>
-      {% endif %}
+      <details class="footer-privacy" id="privacy">
+        <summary>Privacy</summary>
+        <p>Cloudflare and GitHub process connection data to serve and protect this site. The country of your connection may determine the profile shown on the homepage. Choosing English can be remembered for up to 180 days. <a href="mailto:hello@ashtonmilton.net">Privacy enquiries</a>.</p>
+        {% if analytics.token %}
+        <p>Optional Cloudflare analytics measures page visits and performance. It is off unless you allow it; change your choice here at any time.</p>
+        <div id="analytics-preference" hidden>
+          <button type="button" data-choice="allow">Allow analytics</button>
+          <button type="button" data-choice="off">Turn off analytics</button>
+          <p role="status"></p>
+        </div>
+        {% endif %}
+      </details>
     </div>
   </div>
 </footer>

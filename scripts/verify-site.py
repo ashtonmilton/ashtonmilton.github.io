@@ -225,7 +225,7 @@ def main():
                 candidate_path = candidate.strip().split()[0] if candidate.strip() else ""
                 require(candidate_path.startswith("/assets/images/") and (OUTPUT / candidate_path[1:]).is_file(), f"Missing responsive image: {candidate_path}")
     index = json.loads((OUTPUT / "assets/search-index.json").read_text())
-    require({"/zh/about/", "/ja/about/", "/th/about/"}.issubset({row["url"] for row in index}), "Search is missing a priority language.")
+    require({row["url"] for row in index} == {url for url in pages if url.startswith("/writing/") and url != "/writing/"}, "Work search does not match the archive.")
     require(all(ORIGIN + row["url"] in expected for row in index), "Search index includes unlisted content.")
     for item in json.loads((OUTPUT / "catalogue.json").read_text()):
         require("source" not in item and item["url"] in pages and (OUTPUT / item["download"].lstrip("/")).is_file(), "Public catalogue leaks source data or omits output.")

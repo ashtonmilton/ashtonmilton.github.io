@@ -62,7 +62,7 @@ def clean(parts):
 urls = [urlsplit(loc.text).path for loc in ET.parse(OUTPUT / "sitemap.xml").findall("./{*}url/{*}loc")]
 index = []
 for url in urls:
-    if url in {"/", "/writing/", "/search/", "/privacy/"}:
+    if not url.startswith("/writing/") or url == "/writing/":
         continue
     path = OUTPUT / url.lstrip("/") / "index.html"
     page = Entry(path.read_text(encoding="utf-8"))

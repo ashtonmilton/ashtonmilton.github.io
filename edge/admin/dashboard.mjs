@@ -1,3 +1,5 @@
+import { preparePublication, publicationStatus, publishingForm, PublishError, submitPublication } from "./publishing.mjs";
+
 const origin = "https://ashtonmilton.net";
 const adminHost = "admin.ashtonmilton.net";
 const workflow = "https://github.com/ashtonmilton/ashtonmilton.github.io/actions";
@@ -7,6 +9,8 @@ const escape = (value) => String(value).replace(/[&<>"']/g, (character) =>
 const number = (value) => Number.isFinite(value) ? new Intl.NumberFormat("en-GB").format(value) : "Unavailable";
 const css = `*{box-sizing:border-box}body{margin:0;background:#16352c;color:#faf6ed;font:1rem/1.55 Avenir,system-ui,sans-serif}header,main{max-width:72rem;margin:auto;padding:1.5rem}header,section{border-bottom:1px solid #faf6ed55}section{padding:1rem 0 1.75rem}h1{font-size:2rem;margin:.25rem 0}h2{font-size:1.4rem}h3{font-size:1rem}a{color:#ead28d}a:focus-visible{outline:2px solid #fff;outline-offset:3px}table{width:100%;border-collapse:collapse;table-layout:fixed}caption{text-align:left;font-weight:600;margin:.5rem 0}th,td{text-align:left;padding:.45rem 0;border-bottom:1px solid #faf6ed33;overflow-wrap:anywhere}th:last-child,td:last-child{text-align:right;width:8rem}.tables{display:grid;gap:1.25rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))}dt{font-weight:600}dd{margin:0 0 .75rem}small{color:#faf6edda}`;
 
+const publishingCss = `.form-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:1rem}.form-fields .wide{grid-column:1/-1}label{display:block;font-weight:600}input:not([type=checkbox]),textarea,select{display:block;width:100%;margin-top:.35rem;padding:.55rem;border:1px solid #faf6ed70;background:#102c25;color:#faf6ed;font:inherit}textarea{resize:vertical}.publish-confirm{margin:1.25rem 0}button{font:inherit;font-weight:600;padding:.6rem 1rem;background:#ead28d;color:#182923;border:0;cursor:pointer}button:focus-visible{outline:2px solid white;outline-offset:3px}.publish-status{border-inline-start:2px solid #ead28d;padding-inline-start:1rem}`;
+
 function reply(body, type, status = 200) {
   return new Response(body, { status, headers: {
     "Content-Type": type,
@@ -15,7 +19,7 @@ function reply(body, type, status = 200) {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
-    "Content-Security-Policy": "default-src 'none'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    "Content-Security-Policy": "default-src 'none'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
   }});
 }
 
@@ -74,14 +78,36 @@ export default {
     if (!user?.email || !allowed.includes(String(user.email).toLowerCase())) {
       return reply("Access required", "text/plain; charset=utf-8", 403);
     }
+    if (req.method === "POST" && url.pathname === "/publish") {
+      if (req.headers.get("Origin") !== url.origin) return reply("Same-origin submission required.", "text/plain; charset=utf-8", 403);
+      if (!env.GITHUB_PUBLISH_TOKEN) return reply("Publishing is not configured.", "text/plain; charset=utf-8", 503);
+      try {
+        const publication = await preparePublication(req);
+        const commit = await submitPublication(publication, env.GITHUB_PUBLISH_TOKEN);
+        const destination = new URL("/", url.origin);
+        destination.searchParams.set("commit", commit);
+        destination.searchParams.set("post", publication.slug);
+        const response = reply(null, "text/plain; charset=utf-8", 303);
+        response.headers.set("Location", destination.href);
+        return response;
+      } catch (error) {
+        const message = error instanceof PublishError ? error.message : "The submission could not be processed.";
+        return reply(`<!doctype html><html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Publication Not Confirmed</title><link rel="stylesheet" href="/style.css"><main><h1>Publication Not Confirmed</h1><p>${escape(message)}</p><p>Use your browser’s Back button to return to your draft.</p><p><a href="/">Return to Administration</a></p></main></html>`,
+          "text/html; charset=utf-8", error instanceof PublishError ? error.status : 500);
+      }
+    }
     if (req.method !== "GET") return reply("Method not allowed", "text/plain; charset=utf-8", 405);
-    if (url.pathname === "/style.css") return reply(css, "text/css; charset=utf-8");
+    if (url.pathname === "/style.css") return reply(css + publishingCss, "text/css; charset=utf-8");
     if (url.pathname !== "/") return reply("Not found", "text/plain; charset=utf-8", 404);
 
-    const [health, catalogue, stats] = await Promise.allSettled([
+    const commit = url.searchParams.get("commit") || "";
+    const post = url.searchParams.get("post") || "";
+    const receipt = /^[a-f0-9]{40}$/.test(commit) && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(post);
+    const [health, catalogue, stats, deployment] = await Promise.allSettled([
       request(origin + "/?source=admin-health", {method: "HEAD"}),
       request(origin + "/catalogue.json").then((response) => response.json()),
-      traffic(env)
+      traffic(env),
+      receipt ? publicationStatus(commit) : null
     ]);
     const items = catalogue.status === "fulfilled" && Array.isArray(catalogue.value) ? catalogue.value : null;
     const statsData = stats.status === "fulfilled" ? stats.value : null;
@@ -89,6 +115,10 @@ export default {
     return reply(`<!doctype html><html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
       <title>Site Administration | Ashton Milton</title><link rel="stylesheet" href="/style.css">
       <header><h1>Site Administration</h1><p>ashtonmilton.net · Private</p></header><main>
+      <section><h2>Publish Work</h2>
+      ${receipt ? `<div class="publish-status"><p>${escape(deployment.value || "Submission recorded. Check GitHub Actions for deployment status.")}</p>
+      <p><a href="https://github.com/ashtonmilton/ashtonmilton.github.io/commit/${commit}">View Commit</a> · <a href="${origin}/writing/${post}/">Open Public URL</a> · <a href="${workflow}">Deployment Runs</a></p></div>` : ""}
+      ${env.GITHUB_PUBLISH_TOKEN ? publishingForm() : "<p>Publishing is unavailable until the repository connection is configured.</p>"}</section>
       <section><h2>Infrastructure</h2><dl><dt>HTTPS availability</dt><dd>${health.status === "fulfilled" ? "Public site responded successfully." : "Public site check failed."} Checked ${escape(checked)} UTC.</dd>
       <dt>Deployment and monitoring</dt><dd><a href="${workflow}">GitHub Actions</a></dd>
       <dt>DNS and security events</dt><dd><a href="https://dash.cloudflare.com/">Open Cloudflare</a></dd></dl></section>

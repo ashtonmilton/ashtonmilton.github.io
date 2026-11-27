@@ -1,5 +1,13 @@
 # Infrastructure Acceptance
 
+## 27 November 2026 Update
+
+- The public localisation Worker is routed on the apex. Full (strict) TLS and the live response security headers have been checked. Direct language editions and shared publication links still work independently of the homepage redirect.
+- The Work-only search, collapsed footer disclosure and removal of the visible language menu passed local browser and build checks. These public changes still require a successful GitHub Pages release.
+- The `ashtonmilton-admin` Worker has been uploaded with no public hostname or preview. Its publishing flow passed local access, validation, non-overwrite and Eleventy integration checks. The Access application, private hostname, repository credential and first live publish still need to be verified. The dashboard does not yet measure distinct or returning readers, or private inbox and subscriber counts.
+
+The sections below record the initial infrastructure audit and its performance baseline.
+
 ## Confirmed on the Live Site
 
 - Cloudflare is authoritative and the apex is proxied. GitHub Pages remains the origin. Apex HTTPS, www HTTPS, canonical redirects and direct origin certificate validation passed. The sampled CSS response used Brotli. The live audit retrieved 49 listed pages with each of four user-agent strings (196 requests); these are not verified crawler requests.
