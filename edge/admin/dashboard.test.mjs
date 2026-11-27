@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import dashboard from "./dashboard.mjs";
+import {startSession, validSession} from "./session.mjs";
 
 const env = { ACCESS_AUDIENCE: "test-audience", ADMIN_EMAILS: "owner@example.test" };
 const request = new Request("https://admin.ashtonmilton.net/");
@@ -69,4 +70,54 @@ test("Publishing creates one Markdown file without overwrite and returns the rea
   assert.match(markdown, /&lt;em>text/);
   upstreamStatus = 422;
   assert.equal((await dashboard.fetch(publishRequest(), publishing, user)).status, 409);
+});
+
+const key = "fa32".repeat(16);
+const native = { ADMIN_LOGIN_KEY: key, ADMIN_LOGIN_LIMIT: {limit: async () => ({success: true})} };
+const origin = "https://admin.ashtonmilton.net";
+const login = (password, source = origin) => new Request(origin + "/login", {
+  method: "POST", body: new URLSearchParams({password}), headers: {Origin: source}
+});
+
+test("Native login gates publishing, rate-limits attempts and issues an eight-hour host-only session", async () => {
+  const form = await dashboard.fetch(request, native, {});
+  assert.match(await form.text(), /Admin Password/);
+  assert.equal((await dashboard.fetch(publishRequest(), native, {})).status, 401);
+  assert.equal((await dashboard.fetch(login(key, "https://ashtonmilton.net"), native, {})).status, 403);
+  assert.equal((await dashboard.fetch(login("de19".repeat(16)), native, {})).status, 401);
+  const rateLimited = {...native, ADMIN_LOGIN_LIMIT: {limit: async () => ({success: false})}};
+  assert.equal((await dashboard.fetch(login(key), rateLimited, {})).status, 429);
+  const signedIn = await dashboard.fetch(login(key), native, {});
+  assert.equal(signedIn.status, 303);
+  const cookie = signedIn.headers.get("Set-Cookie");
+  assert.match(cookie, /^__Host-ashton_admin=.+; Path=\/; Secure; HttpOnly; SameSite=Strict; Max-Age=28800$/);
+  const headers = {Cookie: cookie.split(";")[0]};
+  assert.ok(await validSession(new Request(origin, {headers}), key));
+  assert.equal(await validSession(new Request(origin, {headers: {Cookie: headers.Cookie + "a"}}), key), false);
+  assert.equal(await validSession(new Request(origin, {headers}), "de19".repeat(16)), false);
+  const expired = (await startSession(key, Date.now() - 9 * 3600000)).split(";")[0];
+  assert.equal(await validSession(new Request(origin, {headers: {Cookie: expired}}), key), false);
+  const logout = await dashboard.fetch(new Request(origin + "/logout", {method: "POST", headers: {...headers, Origin: origin}}), native, {});
+  assert.match(logout.headers.get("Set-Cookie"), /Max-Age=0$/);
+});
+
+test("Revision preserves metadata and URL and guards against overwriting a newer version", async (context) => {
+  const previous = "a".repeat(40);
+  const fixture = `---\nlayout: "layouts/article.njk"\ntemplateEngineOverride: "md"\ndashboardEditable: true\npermalink: "/writing/test-note/"\ntitle: "Original Note"\nsummary: "Original Summary"\ncategory: "Notes"\ntags: ["Development"]\ndate: "2026-11-26"\n---\n\nBody.\n`;
+  const upstream = context.mock.method(globalThis, "fetch", async (_, options) => options.method === "PUT"
+    ? Response.json({commit: {sha: "b".repeat(40)}})
+    : Response.json({type: "file", encoding: "base64", size: fixture.length, sha: previous, content: Buffer.from(fixture).toString("base64")}));
+  const publishing = {...env, GITHUB_PUBLISH_TOKEN: "server-only-test-value"};
+  const user = identity("owner@example.test");
+  const revision = (revisionSha) => new Request(origin + "/edit", {method: "POST", headers: {Origin: origin},
+    body: new URLSearchParams({slug: "test-note", previous: revisionSha, title: "Revised Name", summary: "Revised summary.", writing: "Revised <script> body.", confirm: "yes"})});
+  assert.equal((await dashboard.fetch(revision("c".repeat(40)), publishing, user)).status, 409);
+  assert.equal(upstream.mock.callCount(), 1);
+  assert.equal((await dashboard.fetch(revision(previous), publishing, user)).status, 303);
+  const payload = JSON.parse(upstream.mock.calls[2].arguments[1].body);
+  const markdown = Buffer.from(payload.content, "base64").toString("utf8");
+  assert.equal(payload.sha, previous);
+  assert.match(markdown, /permalink: "\/writing\/test-note\/"/);
+  assert.match(markdown, /date: "2026-11-26"/);
+  assert.match(markdown, /Revised &lt;script>/);
 });

@@ -25,6 +25,20 @@ Browser analytics measures only the consenting, observable sample. Cloudflare's 
 
 ## Private Administration and Publishing
 
+### Sign In on the Website
+
+The admin Worker supports its own password form at `https://admin.ashtonmilton.net/`. Cloudflare Access can remain in place while preparing the change; without a native password configured, the previous Access mode remains in use. Do not enable a bypass policy. Never use a Cloudflare or GitHub password as the site password.
+
+1. Deploy the updated admin Worker in a way that preserves its existing Custom Domain, bindings and secrets. The current Wrangler file includes the required `ADMIN_LOGIN_LIMIT` binding. Do not enable `workers.dev` or previews.
+2. In Terminal, run `openssl rand -hex 32`. Store the resulting 64 characters in a password manager as the separate site admin password. In **Workers & Pages → ashtonmilton-admin → Settings → Variables and Secrets**, add its exact value as the **Production Secret** `ADMIN_LOGIN_KEY`. Do not paste it into chat or commit it. Deploy the binding.
+3. Verify that the site’s own password form works behind the existing Access sign-in before removing the outer sign-in. Then remove only the Access protection for `admin.ashtonmilton.net` and, if present, the Worker-level protection for `ashtonmilton-admin`. A hostname policy takes precedence over a Worker policy, so both may apply in succession. Leave other apps, shared policies, account-wide rules, and DNS untouched. If broader account protection still applies, review it before making any further change.
+4. In a fresh browser window, verify that the native password form appears, incorrect credentials cannot enter and the correct password opens the dashboard. Test publishing and reviewing a real approved piece with the repository connection described below. The eight-hour session is host-only, HTTPS-only and inaccessible to JavaScript. Signing out clears the browser cookie; rotating `ADMIN_LOGIN_KEY` invalidates all outstanding sessions. Cloudflare rate limits sign-in attempts approximately per IP and location. There is no password-reset email or additional login factor; use the Cloudflare Worker settings to rotate a lost password.
+5. To revert, restore Access for the admin hostname **before** removing the native login secret or rolling back the Worker. To disable write access independently, remove `GITHUB_PUBLISH_TOKEN`.
+
+New pieces created by this dashboard can be revised from **Edit Work**. The revision preserves the URL, category, tags and publication date and rejects stale versions instead of overwriting a more recent change. Existing hand-formatted essays and static pages are not editable through this form. No content is migrated automatically.
+
+### Original Access Mode
+
 1. In Cloudflare Zero Trust, create a self-hosted Access application for `admin.ashtonmilton.net`. Use an exact email allow-list, not a domain-wide policy. Confirm the named account before granting access. No bypass rules or public preview hostnames.
 2. Deploy the separate Worker with `npx wrangler deploy --config edge/admin/wrangler.toml`. Keep `workers_dev` and preview URLs off, add the custom domain only after Access is configured and provide `ACCESS_AUDIENCE` and `ADMIN_EMAILS` as that Worker's configuration. It fails closed without trusted Access context, the configured audience and an allow-listed identity.
 3. Optional private metrics: set `CF_ZONE_ID` and store `CF_ANALYTICS_TOKEN` as a Worker secret restricted to Analytics Read for this zone. The dashboard will display sampled edge requests and a public catalogue and uptime check; it does not have per-person, inbox, newsletter, annual reporting or security-event API integrations. Cloudflare and GitHub consoles remain the authoritative sources for those supported data. If the GraphQL entitlement or filter is unavailable, the dashboard reports no data rather than returning a fabricated count.

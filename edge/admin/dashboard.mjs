@@ -1,4 +1,5 @@
-import { preparePublication, publicationStatus, publishingForm, PublishError, submitPublication } from "./publishing.mjs";
+import { editableWriting, listWriting, preparePublication, publicationStatus, publishingForm, PublishError, reviseWriting, submitPublication } from "./publishing.mjs";
+import { endSession, localLoginReady, loginInput, matchesPassword, startSession, validSession } from "./session.mjs";
 
 const origin = "https://ashtonmilton.net";
 const adminHost = "admin.ashtonmilton.net";
@@ -27,6 +28,24 @@ async function request(url, options = {}) {
   const response = await fetch(url, { ...options, redirect: "error", signal: AbortSignal.timeout(5500) });
   if (!response.ok) throw new Error("Upstream unavailable");
   return response;
+}
+
+function redirect(path, session) {
+  const response = reply(null, "text/plain; charset=utf-8", 303);
+  response.headers.set("Location", new URL(path, `https://${adminHost}`).href);
+  if (session) response.headers.set("Set-Cookie", session);
+  return response;
+}
+
+function loginPage(message = "", status = 200) {
+  return reply(`<!doctype html><html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign In | Ashton Milton</title><link rel="stylesheet" href="/style.css">
+    <main class="login"><p class="site-name">Ashton Milton</p><h1>Site Administration</h1>
+    ${message ? `<p role="alert">${escape(message)}</p>` : ""}
+    <form method="post" action="/login"><label>Admin Password<input type="password" name="password" required maxlength="64" autocomplete="current-password"></label><button type="submit">Sign In</button></form></main></html>`, "text/html; charset=utf-8", status);
+}
+
+function editPage(body, status = 200) {
+  return reply(`<!doctype html><html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Edit Work | Ashton Milton</title><link rel="stylesheet" href="/style.css"><main><p><a href="/">Site Administration</a></p><h1>Edit Work</h1>${body}</main></html>`, "text/html; charset=utf-8", status);
 }
 
 const trafficQuery = `query Readership($zone: string, $from: Date, $to: Date) {
@@ -68,21 +87,44 @@ function table(title, key, rows, dimension) {
 export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
-    if (url.hostname !== adminHost || url.protocol !== "https:" || !ctx?.access ||
-        !env.ACCESS_AUDIENCE || ctx.access.aud !== env.ACCESS_AUDIENCE || !env.ADMIN_EMAILS) {
-      return reply("Access required", "text/plain; charset=utf-8", 403);
+    if (url.host !== adminHost || url.protocol !== "https:") return reply("Not found", "text/plain; charset=utf-8", 404);
+    const native = localLoginReady(env);
+    if (native && req.method === "GET" && url.pathname === "/style.css") {
+      return reply(css + publishingCss + ".login{max-width:28rem;margin:10vh auto}.login button{margin-top:1rem}.site-name{color:#ead28d}", "text/css; charset=utf-8");
     }
-    let user;
-    try { user = await ctx.access.getIdentity(); } catch { /* Fail closed. */ }
-    const allowed = env.ADMIN_EMAILS.split(",").map((email) => email.trim().toLowerCase()).filter(Boolean);
-    if (!user?.email || !allowed.includes(String(user.email).toLowerCase())) {
-      return reply("Access required", "text/plain; charset=utf-8", 403);
+    if (native && req.method === "POST" && url.pathname === "/login") {
+      if (req.headers.get("Origin") !== url.origin) return reply("Same-origin submission required.", "text/plain; charset=utf-8", 403);
+      try {
+        const limit = await env.ADMIN_LOGIN_LIMIT.limit({key: req.headers.get("CF-Connecting-IP") || "unknown"});
+        if (!limit.success) return loginPage("Too many sign-in attempts. Try again in a minute.", 429);
+        if (!await matchesPassword(await loginInput(req), env.ADMIN_LOGIN_KEY)) return loginPage("The admin password is incorrect.", 401);
+        return redirect("/", await startSession(env.ADMIN_LOGIN_KEY));
+      } catch { return loginPage("Sign-in is temporarily unavailable.", 503); }
     }
-    if (req.method === "POST" && url.pathname === "/publish") {
+    if (native && req.method === "POST" && url.pathname === "/logout") {
+      if (req.headers.get("Origin") !== url.origin) return reply("Same-origin submission required.", "text/plain; charset=utf-8", 403);
+      return redirect("/", endSession());
+    }
+    if (native) {
+      if (!await validSession(req, env.ADMIN_LOGIN_KEY)) {
+        if (req.method === "GET" && url.pathname === "/") return loginPage();
+        return reply("Sign-in required", "text/plain; charset=utf-8", 401);
+      }
+    } else if (!ctx?.access || !env.ACCESS_AUDIENCE || ctx.access.aud !== env.ACCESS_AUDIENCE || !env.ADMIN_EMAILS) {
+      return reply("Access required", "text/plain; charset=utf-8", 403);
+    } else {
+      let user;
+      try { user = await ctx.access.getIdentity(); } catch { /* Fail closed. */ }
+      const allowed = env.ADMIN_EMAILS.split(",").map((email) => email.trim().toLowerCase()).filter(Boolean);
+      if (!user?.email || !allowed.includes(String(user.email).toLowerCase())) {
+        return reply("Access required", "text/plain; charset=utf-8", 403);
+      }
+    }
+    if (req.method === "POST" && (url.pathname === "/publish" || url.pathname === "/edit")) {
       if (req.headers.get("Origin") !== url.origin) return reply("Same-origin submission required.", "text/plain; charset=utf-8", 403);
       if (!env.GITHUB_PUBLISH_TOKEN) return reply("Publishing is not configured.", "text/plain; charset=utf-8", 503);
       try {
-        const publication = await preparePublication(req);
+        const publication = url.pathname === "/edit" ? await reviseWriting(req, env.GITHUB_PUBLISH_TOKEN) : await preparePublication(req);
         const commit = await submitPublication(publication, env.GITHUB_PUBLISH_TOKEN);
         const destination = new URL("/", url.origin);
         destination.searchParams.set("commit", commit);
@@ -98,6 +140,25 @@ export default {
     }
     if (req.method !== "GET") return reply("Method not allowed", "text/plain; charset=utf-8", 405);
     if (url.pathname === "/style.css") return reply(css + publishingCss, "text/css; charset=utf-8");
+    if (url.pathname === "/edit") {
+      if (!env.GITHUB_PUBLISH_TOKEN) return editPage("<p>Publishing is not configured.</p>", 503);
+      try {
+        const slug = url.searchParams.get("post");
+        if (!slug) {
+          const names = await listWriting(env.GITHUB_PUBLISH_TOKEN);
+          return editPage(`<p>Work created here can be edited. Older pieces retain their original format.</p><ul>${names.map((name) => `<li><a href="/edit?post=${name}">${escape(name.replace(/-/g, " "))}</a></li>`).join("")}</ul>`);
+        }
+        const item = await editableWriting(slug, env.GITHUB_PUBLISH_TOKEN);
+        return editPage(`<form method="post" action="/edit"><input type="hidden" name="slug" value="${escape(item.slug)}"><input type="hidden" name="previous" value="${escape(item.previous)}">
+          <div class="form-fields"><label class="wide">Title<input name="title" required maxlength="120" value="${escape(item.data.title)}"></label>
+          <label class="wide">Summary<input name="summary" required maxlength="300" value="${escape(item.data.summary)}"></label>
+          <label class="wide">Writing<textarea name="writing" rows="18" required maxlength="102400">${escape(item.writing)}</textarea></label></div>
+          <label class="publish-confirm"><input name="confirm" type="checkbox" value="yes" required> I approve these changes for publication.</label><button type="submit">Publish Changes</button></form>`);
+      } catch (error) {
+        const message = error instanceof PublishError ? error.message : "The work could not be opened.";
+        return editPage(`<p>${escape(message)}</p><p><a href="/edit">Return to Work</a></p>`, error instanceof PublishError ? error.status : 502);
+      }
+    }
     if (url.pathname !== "/") return reply("Not found", "text/plain; charset=utf-8", 404);
 
     const commit = url.searchParams.get("commit") || "";
@@ -114,11 +175,11 @@ export default {
     const checked = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" }).format(new Date());
     return reply(`<!doctype html><html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
       <title>Site Administration | Ashton Milton</title><link rel="stylesheet" href="/style.css">
-      <header><h1>Site Administration</h1><p>ashtonmilton.net · Private</p></header><main>
+      <header><h1>Site Administration</h1><p>ashtonmilton.net · Private</p>${native ? '<form method="post" action="/logout"><button type="submit">Sign Out</button></form>' : ""}</header><main>
       <section><h2>Publish Work</h2>
       ${receipt ? `<div class="publish-status"><p>${escape(deployment.value || "Submission recorded. Check GitHub Actions for deployment status.")}</p>
       <p><a href="https://github.com/ashtonmilton/ashtonmilton.github.io/commit/${commit}">View Commit</a> · <a href="${origin}/writing/${post}/">Open Public URL</a> · <a href="${workflow}">Deployment Runs</a></p></div>` : ""}
-      ${env.GITHUB_PUBLISH_TOKEN ? publishingForm() : "<p>Publishing is unavailable until the repository connection is configured.</p>"}</section>
+      ${env.GITHUB_PUBLISH_TOKEN ? '<p><a href="/edit">Edit Work</a></p>' + publishingForm() : "<p>Publishing is unavailable until the repository connection is configured.</p>"}</section>
       <section><h2>Infrastructure</h2><dl><dt>HTTPS availability</dt><dd>${health.status === "fulfilled" ? "Public site responded successfully." : "Public site check failed."} Checked ${escape(checked)} UTC.</dd>
       <dt>Deployment and monitoring</dt><dd><a href="${workflow}">GitHub Actions</a></dd>
       <dt>DNS and security events</dt><dd><a href="https://dash.cloudflare.com/">Open Cloudflare</a></dd></dl></section>

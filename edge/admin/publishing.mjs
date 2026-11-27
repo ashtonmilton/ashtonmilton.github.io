@@ -105,7 +105,7 @@ export async function preparePublication(request, now = new Date()) {
   const readingTime = type === "note"
     ? new Intl.DateTimeFormat("en-GB", {dateStyle: "long", timeZone: "UTC"}).format(new Date(date))
     : `${Math.max(1, Math.ceil(words / 220))}-minute read`;
-  const metadata = {layout: "layouts/article.njk", templateEngineOverride: "md",
+  const metadata = {layout: "layouts/article.njk", templateEngineOverride: "md", dashboardEditable: true,
     permalink: `/writing/${slug}/`, title, description: summary, summary, category, tags,
     date, lastmod: today, status: "published", readingTime};
   // No raw HTML or externally embedded images. Markdown links and headings still work.
@@ -115,7 +115,7 @@ export async function preparePublication(request, now = new Date()) {
 }
 
 export async function submitPublication(publication, token) {
-  const {slug, title, markdown} = publication;
+  const {slug, title, markdown, previous} = publication;
   if (!slugPattern.test(slug)) throw new PublishError("Invalid URL slug.");
   let response;
   try {
@@ -123,22 +123,75 @@ export async function submitPublication(publication, token) {
       method: "PUT",
       headers: {"Authorization": `Bearer ${token}`, "Accept": "application/vnd.github+json",
         "Content-Type": "application/json", "User-Agent": "AshtonMilton-Publisher"},
-      body: JSON.stringify({branch: "main", message: `Publish: ${title}`, content: base64(markdown)}),
+      body: JSON.stringify({branch: "main", message: `${previous ? "Revise" : "Publish"}: ${title}`, content: base64(markdown), ...(previous ? {sha: previous} : {})}),
       redirect: "error", signal: AbortSignal.timeout(10000)
     });
   } catch {
     throw new PublishError("Could not confirm submission. Check GitHub Actions or the commit history before retrying.", 502);
   }
   if (response.status === 409 || response.status === 422) {
-    throw new PublishError("GitHub rejected this submission. The URL may already exist. Existing work has not been overwritten.", 409);
+    throw new PublishError(previous ? "This piece changed after you opened it. Reopen it before trying again." : "GitHub rejected this submission. The URL may already exist. Existing work has not been overwritten.", 409);
   }
-  if (response.status !== 201) {
+  if (response.status !== (previous ? 200 : 201)) {
     throw new PublishError("GitHub did not accept the publication. Check the repository token and branch settings.", 502);
   }
   let sha;
   try { sha = (await response.json()).commit?.sha; } catch { /* Check the repository before retrying. */ }
   if (!/^[a-f0-9]{40}$/.test(sha || "")) throw new PublishError("GitHub returned no usable commit ID. Check the repository before retrying.", 502);
   return sha;
+}
+
+async function githubContents(path, token) {
+  const response = await fetch(`${api}/contents/src/writing/essays${path}?ref=main`, {
+    headers: {"Authorization": `Bearer ${token}`, "Accept": "application/vnd.github+json", "User-Agent": "AshtonMilton-Publisher"},
+    redirect: "error", signal: AbortSignal.timeout(5500)
+  });
+  if (response.status === 404) throw new PublishError("Work not found.", 404);
+  if (!response.ok) throw new PublishError("The repository could not be read.", 502);
+  return response.json();
+}
+
+export async function listWriting(token) {
+  const entries = await githubContents("", token);
+  if (!Array.isArray(entries)) throw new PublishError("The repository could not be read.", 502);
+  return entries.flatMap(({type, name}) => type === "file" && /^[a-z0-9]+(?:-[a-z0-9]+)*\.md$/.test(name) ? [name.slice(0, -3)] : []);
+}
+
+export async function editableWriting(slug, token) {
+  if (!slugPattern.test(slug) || slug.length > 90) throw new PublishError("Work not found.", 404);
+  const file = await githubContents(`/${slug}.md`, token);
+  if (file.type !== "file" || file.encoding !== "base64" || file.size > maxRequestBytes || !/^[a-f0-9]{40}$/.test(file.sha || "")) {
+    throw new PublishError("This file cannot be edited here.", 409);
+  }
+  const markdown = new TextDecoder("utf-8", {fatal: true}).decode(Uint8Array.from(atob(file.content.replace(/\s/g, "")), (byte) => byte.charCodeAt(0)));
+  const match = /^---\n([^]*?)\n---\n([^]*)$/.exec(markdown);
+  if (!match || !/^dashboardEditable: true$/m.test(match[1]) || !/^templateEngineOverride: "md"$/m.test(match[1])) {
+    throw new PublishError("This piece uses the original site format and is not editable here.", 409);
+  }
+  const data = Object.fromEntries(match[1].split("\n").map((line) => {
+    const i = line.indexOf(": ");
+    return [line.slice(0, i), JSON.parse(line.slice(i + 2))];
+  }));
+  return {slug, previous: file.sha, data, writing: match[2].trim()};
+}
+
+export async function reviseWriting(request, token, now = new Date()) {
+  const form = await readForm(request);
+  const slug = field(form, "slug", 90);
+  const title = field(form, "title", 120);
+  const summary = field(form, "summary", 300);
+  const writing = String(form.get("writing") || "").trim();
+  if (form.get("confirm") !== "yes") throw new PublishError("Confirm that these changes may be published.");
+  if (!writing || encoder.encode(writing).length > maxWritingBytes || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffd]/.test(writing)) {
+    throw new PublishError("Provide UTF-8 text or Markdown no larger than 100 KiB.");
+  }
+  const current = await editableWriting(slug, token);
+  if (form.get("previous") !== current.previous) throw new PublishError("This piece changed after you opened it. Reopen it before trying again.", 409);
+  const parts = Object.fromEntries(formatter.formatToParts(now).map(({type, value}) => [type, value]));
+  const data = {...current.data, title, summary, description: summary, lastmod: `${parts.year}-${parts.month}-${parts.day}`};
+  if (data.category !== "Notes") data.readingTime = `${Math.max(1, Math.ceil(writing.split(/\s+/).length / 220))}-minute read`;
+  const frontmatter = Object.entries(data).map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join("\n");
+  return {slug, title, previous: current.previous, markdown: `---\n${frontmatter}\n---\n\n${writing.replace(/</g, "&lt;").replace(/!\[/g, "!&#91;")}\n`};
 }
 
 export async function publicationStatus(sha) {
