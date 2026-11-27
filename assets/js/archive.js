@@ -14,7 +14,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     doc: workDocument({title: card.querySelector("h3")?.textContent, description: card.querySelector("p")?.textContent,
       tags: [...card.querySelectorAll(".tag-row li")].map((tag) => tag.textContent), kind: card.dataset.category})
   }));
-  let active = "all", pending = false, limited = false, searching = false, index;
+  const categories = ["all", "independent", "notes", "photo-essays", "reflections", "academic"];
+  const url = new URL(location.href);
+  let active = filters[categories.indexOf(url.searchParams.get("category"))]?.dataset.filter || "all";
+  let pending = false, limited = false, searching = false, index;
   let bodies = new Map();
   tools.hidden = false;
 
@@ -47,14 +50,32 @@ document.addEventListener("DOMContentLoaded", async () => {
       (limited ? " Searching titles, descriptions and topics only." : "");
   }
 
-  filters.forEach((button) => button.addEventListener("click", () => {
-    active = button.dataset.filter;
+  function updateFilters() {
     filters.forEach((item) => {
-      item.classList.toggle("active", item === button);
-      item.setAttribute("aria-pressed", String(item === button));
+      const selected = item.dataset.filter === active;
+      item.classList.toggle("active", selected);
+      item.setAttribute("aria-pressed", String(selected));
     });
+  }
+
+  function choose(index) {
+    active = filters[index].dataset.filter;
+    const next = new URL(location.href);
+    if (index === 0) next.searchParams.delete("category");
+    else next.searchParams.set("category", categories[index]);
+    history.replaceState(history.state, "", next);
+    updateFilters();
     render();
-  }));
+  }
+
+  filters.forEach((button,index) => button.addEventListener("click", () => choose(index)));
+  document.querySelector("[data-reset-work]")?.addEventListener("click", () => {
+    input.value = "";
+    choose(0);
+    input.focus();
+  });
+  updateFilters();
+  render();
 
   input.addEventListener("input", () => {
     if (queryWork(input.value).terms.length && !index) {

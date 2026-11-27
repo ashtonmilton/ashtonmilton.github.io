@@ -281,8 +281,8 @@ export async function publicationStatus(sha) {
   } catch { return null; }
 }
 
-export function publishingForm(related = "") {
-  return `<form action="/publish" method="post" enctype="multipart/form-data">
+export function publishingForm(related = "", draftTools = "") {
+  return `<form action="/publish" method="post" enctype="multipart/form-data" data-draft="new">${draftTools}
     <div class="form-fields">
       <label>Title<input name="title" maxlength="120" required></label>
       <label>Type<select name="type"><option value="article">Article</option><option value="note">Note</option><option value="reflection">Essay or Reflection</option><option value="academic">Selected Academic Work</option></select></label>

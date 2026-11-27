@@ -1,4 +1,87 @@
 function setupEditor() {
+  const hasPhotoPost = location.pathname === "/photos" && new URL(location.href).searchParams.has("post");
+  const section = hasPhotoPost ? "/edit" : location.pathname === "/upload" ? "/media" : location.pathname;
+  for (const link of document.querySelectorAll(".admin-nav a")) {
+    if (link.getAttribute("href") === section) link.setAttribute("aria-current","page");
+  }
+  const draftPrefix = "ashton-admin-draft:";
+  for (const form of document.querySelectorAll("form[data-draft]")) {
+    const tools = form.querySelector("[data-draft-tools]");
+    if (!tools) continue;
+    const key = draftPrefix + location.pathname + ":" + form.dataset.draft;
+    const version = form.querySelector('[name="previous"]')?.value || "";
+    const receipt = new URL(location.href).searchParams.get("commit") || "";
+    const status = tools.querySelector("[role=status]");
+    const discard = tools.querySelector("[data-draft-discard]");
+    const restore = tools.querySelector("[data-draft-restore]");
+    const fields = () => [...form.elements].filter((field) => field.name && !field.disabled &&
+      field.name !== "confirm" && !["file","hidden","submit","button"].includes(field.type));
+    let draft;
+    function update() {
+      discard.hidden = !draft;
+      restore.hidden = !draft || draft.version !== version;
+      if (draft && draft.version !== version) status.textContent = "A draft belongs to an older version of this item. It cannot replace newer changes.";
+    }
+    function save() {
+      const next = {version, receipt, fields: fields().map((field) => field.type === "checkbox" ? [field.name,field.value,field.checked] : [field.name,field.value])};
+      try {
+        sessionStorage.setItem(key,JSON.stringify(next));
+        draft = next;
+        update();
+        status.textContent = "Draft saved in this tab. Files are not saved with drafts.";
+      } catch { status.textContent = "The browser could not save a draft."; }
+    }
+    try {
+      draft = JSON.parse(sessionStorage.getItem(key));
+      if (draft && /^[a-f0-9]{40}$/.test(receipt) && draft.receipt !== receipt) {
+        sessionStorage.removeItem(key);
+        draft = null;
+      }
+      if (draft && !Array.isArray(draft.fields)) draft = null;
+      tools.hidden = false;
+      update();
+    } catch { continue; }
+    tools.querySelector("[data-draft-save]").addEventListener("click",save);
+    form.addEventListener("submit",save);
+    discard.addEventListener("click",() => {
+      sessionStorage.removeItem(key);
+      draft = null;
+      update();
+      status.textContent = "Saved draft discarded.";
+    });
+    restore.addEventListener("click",() => {
+      if (!draft || draft.version !== version) return;
+      const saved = new Map(draft.fields.map(([name,value,checked]) => [checked === undefined ? name : name + "\n" + value, {value,checked}]));
+      for (const field of fields()) {
+        const entry = saved.get(field.type === "checkbox" ? field.name + "\n" + field.value : field.name);
+        if (!entry) continue;
+        if (field.type === "checkbox") field.checked = entry.checked;
+        else if (!field.options || [...field.options].some((item) => item.value === entry.value)) field.value = entry.value;
+      }
+      status.textContent = "Draft restored. No changes have been published.";
+    });
+  }
+  document.querySelector('form[action="/logout"]')?.addEventListener("submit", () => {
+    try { for (const key of Object.keys(sessionStorage)) if (key.startsWith(draftPrefix)) sessionStorage.removeItem(key); } catch {}
+  });
+  for (const library of document.querySelectorAll("[data-work-library]")) {
+    const input = library.querySelector("[data-find-work]");
+    const status = library.querySelector("[data-work-status]");
+    const entries = [...library.querySelectorAll("[data-entry-status]")];
+    const report = library.querySelector("[role=status]");
+    const normalise = (value) => value.normalize("NFKD").replace(/\p{M}/gu,"").toLocaleLowerCase("en-GB").replace(/[^\p{L}\p{N}]+/gu," ").trim();
+    const title = new Map(entries.map((entry) => [entry,normalise(entry.querySelector("a").textContent)]));
+    function filter() {
+      const words = normalise(input.value).split(" ").filter(Boolean);
+      for (const entry of entries) entry.hidden = !!status?.value && entry.dataset.entryStatus !== status.value || !words.every((word) => title.get(entry).includes(word));
+      const visible = entries.filter((entry) => !entry.hidden).length;
+      report.textContent = `${visible} of ${entries.length} pieces`;
+    }
+    library.querySelector(".list-tools").hidden = false;
+    input.addEventListener("input",filter);
+    status?.addEventListener("change",filter);
+    filter();
+  }
   for (const block of document.querySelectorAll("[data-copy-body]")) {
     const text = block.querySelector("textarea");
     block.addEventListener("click", (event) => {

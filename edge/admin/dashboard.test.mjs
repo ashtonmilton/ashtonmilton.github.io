@@ -134,8 +134,24 @@ test("Pages and the unified Work list remain usable with Worker-supported fetch 
   assert.match(await (await load()).text(), /Edit Articles, Notes and Photo Essays/);
   const work = () => dashboard.fetch(new Request(origin + "/edit"), {...env, GITHUB_PUBLISH_TOKEN:"fixture"}, identity("owner@example.test"));
   assert.match(await (await work()).text(), /<a href="\/edit\?post=an-essay">An Essay/);
+  assert.match(await (await work()).text(), /data-find-work/);
   status = 403;
   const html = await (await load()).text();
   assert.match(html, /Main Pages/);
   assert.match(await (await work()).text(), /GitHub denied access to the work archive \(403\)/);
+});
+
+test("Featured Work uses public titles and does not offer unpublished repository files", async (context) => {
+  context.mock.method(globalThis,"fetch",async (url) => {
+    if (url.endsWith("assets/search-index.json")) return Response.json([{url:"/writing/an-essay/",title:"The Actual Title"}]);
+    if (url.includes("homeFeatured.json")) return Response.json({}, {status:404});
+    if (url.includes("/contents/src/writing/essays?")) return Response.json([{type:"file",name:"an-essay.md"},{type:"file",name:"archived-essay.md"}]);
+    throw new Error(`Unexpected fixture: ${url}`);
+  });
+  const res = await dashboard.fetch(new Request(origin + "/featured"), {...env,GITHUB_PUBLISH_TOKEN:"fixture"},identity("owner@example.test"));
+  assert.equal(res.status,200);
+  const html = await res.text();
+  assert.match(html, /<option value="\/writing\/an-essay\/">The Actual Title<\/option>/);
+  assert.match(html, /Choose Published Work/);
+  assert.doesNotMatch(html, /archived-essay/);
 });
