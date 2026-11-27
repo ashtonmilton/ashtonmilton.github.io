@@ -1,12 +1,12 @@
 <header class="site-header">
-  <nav class="nav" aria-label="Main navigation">
+  <nav class="nav" aria-label="Main navigation" lang="en-GB">
     <a class="brand" href="/"><img src="/assets/favicon.svg" width="32" height="32" alt=""><span>Ashton Milton</span></a>
     <div class="nav-links">
       <a href="/"{% if navKey == "home" %} class="active" aria-current="page"{% endif %}>Home</a>
       <a href="/writing/"{% if navKey == "writing" %} class="active" aria-current="page"{% endif %}>Work</a>
       <a href="/research/"{% if navKey == "research" %} class="active" aria-current="page"{% endif %}>Research</a>
       <a href="/policy-analysis/"{% if navKey == "policy-analysis" %} class="active" aria-current="page"{% endif %}>Policy Analysis</a>
-      <a href="/about/"{% if navKey == "about" %} class="active" aria-current="page"{% endif %}>About</a>
+      <a href="{% if navKey == 'about' %}{{ page.url }}{% else %}/about/{% endif %}"{% if navKey == "about" %} class="active" aria-current="page"{% endif %}>About</a>
       <a href="/contact/"{% if navKey == "contact" %} class="active" aria-current="page"{% endif %}>Contact</a>
     </div>
   </nav>

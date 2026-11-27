@@ -173,6 +173,20 @@
   .hero-inner { padding-block: 28px 34px; }
 }
 
+/* About profiles */
+.profile-name { max-width: var(--reading); margin: 2rem auto 0; }
+.profile-languages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem 1.25rem;
+  list-style: none;
+  margin-block: 0;
+  padding-block: 0 2.5rem;
+}
+html[lang="zh-Hans"] main { font-family: "Avenir Custom", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+html[lang="th"] main { font-family: "Avenir Custom", "Thonburi", "Leelawadee UI", "Noto Sans Thai", sans-serif; }
+html[lang="ja"] main { font-family: "Avenir Custom", "Hiragino Sans", "Yu Gothic", "Noto Sans CJK JP", sans-serif; }
+
 /* Photo essay sequences */
 .publication-dark .article-reading:has(.folio){width:min(92%,1160px);max-width:none}
 .publication-dark .essay-content.folio{width:100%;max-width:none;margin:auto}

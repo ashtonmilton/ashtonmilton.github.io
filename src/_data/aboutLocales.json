@@ -1,0 +1,6 @@
+[
+  {"lang":"en-GB","og":"en_GB","url":"/about/","label":"English"},
+  {"lang":"zh-Hans","og":"zh_CN","url":"/zh/about/","label":"简体中文"},
+  {"lang":"th","og":"th_TH","url":"/th/about/","label":"ไทย"},
+  {"lang":"ja","og":"ja_JP","url":"/ja/about/","label":"日本語"}
+]

@@ -24,6 +24,7 @@ class Page(HTMLParser):
         self.anchors = []
         self.ids = set()
         self.canonicals = []
+        self.alternates = {}
         self.graphs = []
         self.json_text = None
         self.h1 = 0
@@ -58,6 +59,9 @@ class Page(HTMLParser):
             self.meta[attrs.get("name", attrs.get("property"))] = attrs.get("content")
         if tag == "link" and attrs.get("rel") == "canonical":
             self.canonicals.append(attrs["href"])
+        if tag == "link" and attrs.get("rel") == "alternate" and attrs.get("hreflang"):
+            require(attrs["hreflang"] not in self.alternates, "Duplicate hreflang.")
+            self.alternates[attrs["hreflang"]] = attrs["href"]
         if tag == "a" and attrs.get("rel") == "author":
             self.author_link = attrs.get("href") == "/about/"
         if tag == "script" and attrs.get("type") == "application/ld+json":
@@ -100,6 +104,11 @@ def main():
     descriptions = set()
     destinations = {url: set() for url in pages}
     article_count = 0
+    profiles = json.loads((ROOT / "src/_data/aboutLocales.json").read_text())
+    by_url = {profile["url"]: profile for profile in profiles}
+    alternates = {profile["lang"]: ORIGIN + profile["url"] for profile in profiles}
+    alternates["x-default"] = ORIGIN + "/about/"
+    require(set(by_url).issubset(pages), "A requested About translation is missing.")
     for file in OUTPUT.rglob("*"):
         require(not file.is_symlink(), f"Symlink in public output: {file.name}")
         require(file.name != ".DS_Store", "Finder metadata in public output.")
@@ -113,14 +122,16 @@ def main():
     require(not (OUTPUT / "writing/redistribution-welfare-capacity-policy-analysis").exists(), "Removed placeholder still published.")
 
     for url, page in pages.items():
-        require(page.lang == "en-GB", f"Missing British language declaration: {url}")
+        locale = by_url.get(url, {"lang": "en-GB", "og": "en_GB"})
+        require(page.lang == locale["lang"], f"Wrong language declaration: {url}")
+        require(page.alternates == (alternates if url in by_url else {}), f"Wrong hreflang cluster: {url}")
         require(page.h1 == 1, f"Expected one main heading: {url}")
         require(page.title and page.title not in titles, f"Missing or duplicate title: {url}")
         titles.add(page.title)
         require(page.canonicals == [ORIGIN + url], f"Wrong canonical: {url}")
         require(page.meta.get("og:url") == ORIGIN + url, f"Wrong social URL: {url}")
         require(page.meta.get("og:site_name") == SITE["name"], f"Wrong site name: {url}")
-        require(page.meta.get("og:locale") == "en_GB", f"Wrong social locale: {url}")
+        require(page.meta.get("og:locale") == locale["og"], f"Wrong social locale: {url}")
         require(page.meta.get("description") == page.meta.get("og:description") == page.meta.get("twitter:description") and page.meta.get("description"), f"Inconsistent descriptions: {url}")
         description = page.meta["description"].strip()
         require(description and description not in descriptions, f"Missing or duplicate description: {url}")
@@ -133,15 +144,22 @@ def main():
         if url == "/404.html":
             require("noindex" in page.meta.get("robots", ""), "404 must not be indexed.")
         else:
-            require(all("noindex" not in page.meta.get(name, "").lower() for name in ("robots", "googlebot")), f"Public page blocked: {url}")
+            require(all(
+                not re.search(r"\b(noindex|nofollow|none)\b", (page.meta.get(name) or "").lower())
+                for name in ("robots", "googlebot", "bingbot", "baiduspider")
+            ), f"Public page blocked: {url}")
             people = [item for item in page.graphs if item["@type"] == "Person"]
             require(len(people) == 1 and people[0]["@id"] == PERSON and people[0]["name"] == SITE["author"], f"Inconsistent identity: {url}")
             require(people[0].get("sameAs", []) == SITE["sameAs"], f"Unexpected profile links: {url}")
+            require(people[0].get("alternateName") == SITE["fullName"], f"Wrong full name: {url}")
         if url == "/":
             require(len(page.feature_links) == 3 and page.feature_links[0] == "/policy-analysis/", "Expected a policy-led homepage with two supporting pieces.")
             require(any(item["@type"] == "WebSite" and item["name"] == SITE["name"] for item in page.graphs), "Missing homepage site-name schema.")
-        if url == "/about/":
-            require(any(item["@type"] == "ProfilePage" and item["mainEntity"]["@id"] == PERSON for item in page.graphs), "Missing About profile schema.")
+        if url in by_url:
+            require(any(item["@type"] == "ProfilePage" and item["mainEntity"]["@id"] == PERSON and item["inLanguage"] == locale["lang"] for item in page.graphs), f"Missing or incorrect profile schema: {url}")
+            for profile in profiles:
+                if profile["url"] != url:
+                    require(any(urlsplit(a).path == profile["url"] for a in page.anchors), f"Missing visible language link: {url}")
         if url == "/contact/":
             linkedin = [link for link in SITE["sameAs"] if urlsplit(link).hostname == "www.linkedin.com"]
             require(all(link in page.anchors for link in linkedin), "Contact does not link to the LinkedIn profile.")

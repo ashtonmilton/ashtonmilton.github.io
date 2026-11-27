@@ -3,7 +3,7 @@
 {% set canonicalUrl = site.url + page.url %}
 {% set socialImage = site.url + (shareImage or site.image) %}
 <!DOCTYPE html>
-<html lang="en-GB">
+<html lang="{{ pageLanguage or 'en-GB' }}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -13,10 +13,16 @@
   <meta name="author" content="{{ site.author }}" />
   <meta name="theme-color" content="{{ site.themeColor }}" />
   <link rel="canonical" href="{{ canonicalUrl }}" />
+  {% if navKey == "about" %}
+  {% for locale in aboutLocales %}
+  <link rel="alternate" hreflang="{{ locale.lang }}" href="{{ site.url }}{{ locale.url }}" />
+  {% endfor %}
+  <link rel="alternate" hreflang="x-default" href="{{ site.url }}/about/" />
+  {% endif %}
   <meta property="og:type" content="{{ ogType or 'website' }}" />
   <meta property="og:url" content="{{ canonicalUrl }}" />
   <meta property="og:site_name" content="{{ site.name | escape }}" />
-  <meta property="og:locale" content="en_GB" />
+  <meta property="og:locale" content="{{ socialLocale or 'en_GB' }}" />
   <meta property="og:title" content="{{ titleTag | escape }}" />
   <meta property="og:description" content="{{ metaDescription | escape }}" />
   <meta property="og:image" content="{{ socialImage }}" />
@@ -35,14 +41,14 @@
   {% endfor %}
   {% endif %}
   <link rel="stylesheet" href="/assets/css/site.css?v=2" />
-  <link rel="stylesheet" href="/assets/css/publication.css?v=4" />
+  <link rel="stylesheet" href="/assets/css/publication.css?v=5" />
   {% if preloadHero %}
   <link rel="preload" as="image" href="{{ site.image }}" />
   {% endif %}
   {% if not noindex %}{% include "structured-data.njk" %}{% endif %}
 </head>
 <body class="publication-dark">
-  <a class="skip-link" href="#main">Skip to main content</a>
+  <a class="skip-link" href="#main" lang="en-GB">Skip to main content</a>
   {% include "nav.njk" %}
 
   <main id="main">

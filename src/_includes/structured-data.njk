@@ -9,6 +9,7 @@
       "@type": "Person",
       "@id": {{ personId | json | safe }},
       "name": {{ site.author | json | safe }},
+      "alternateName": {{ site.fullName | json | safe }},
       "url": {{ (site.url + "/about/") | json | safe }},
       "description": {{ site.description | json | safe }},
       {% if site.sameAs.length %}"sameAs": {{ site.sameAs | json | safe }},{% endif %}
@@ -31,7 +32,7 @@
       "url": {{ canonicalUrl | json | safe }},
       "name": {{ titleTag | json | safe }},
       "description": {{ metaDescription | json | safe }},
-      "inLanguage": "en-GB",
+      "inLanguage": {{ (pageLanguage or "en-GB") | json | safe }},
       "isPartOf": { "@id": {{ websiteId | json | safe }} },
       "mainEntity": { "@id": {% if ogType == "article" %}{{ (canonicalUrl + "#article") | json | safe }}{% else %}{{ personId | json | safe }}{% endif %} }
     }
@@ -50,6 +51,7 @@
       "mainEntityOfPage": { "@id": {{ webpageId | json | safe }} },
       "url": {{ canonicalUrl | json | safe }},
       "inLanguage": "en-GB",
+      {% if shareImage %}"image": {{ socialImage | json | safe }},{% endif %}
       {% if date and (page.inputPath | hasFrontMatterDate) %}"datePublished": {{ date | dateToIso | json | safe }},{% endif %}
       {% if lastmod %}"dateModified": {{ lastmod | json | safe }},{% endif %}
       "articleSection": {{ category | json | safe }},
