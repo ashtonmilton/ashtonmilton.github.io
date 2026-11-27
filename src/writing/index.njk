@@ -6,7 +6,7 @@ description: "Essays, policy explainers, notes and photo essays on cities, inequ
 navKey: "writing"
 lastmod: "2026-11-16"
 sitemapOrder: 2
-scripts: ["/assets/js/archive.js?v=2"]
+scripts: ["/assets/js/archive.js?v=3"]
 ---
 <header class="page-masthead">
   <div class="wrap masthead-inner">
@@ -28,6 +28,7 @@ scripts: ["/assets/js/archive.js?v=2"]
   </div>
   <div class="archive-results">
     <p class="archive-count" role="status" data-search-status></p>
+    <div class="archive-entries" data-ranked-results hidden></div>
     {% for category in ["Independent work", "Notes", "Photo Essays", "Essays & reflections", "Selected academic work"] %}
     <section class="archive-group" data-archive-group>
       <header class="archive-group-header">

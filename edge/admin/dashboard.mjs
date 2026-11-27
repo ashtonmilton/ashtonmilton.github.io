@@ -1,5 +1,7 @@
-import { editableWriting, listWriting, preparePublication, publicationStatus, publishingForm, PublishError, reviseWriting, submitPublication } from "./publishing.mjs";
+import { editableWriting, listWriting, preparePublication, publicationStatus, publishingForm, PublishError, readForm, reviseWriting, submitPublication } from "./publishing.mjs";
 import { endSession, localLoginReady, loginInput, matchesPassword, startSession, validSession } from "./session.mjs";
+import { editablePages, openCopy, saveCopy, uploadFile } from "./content.mjs";
+import { readership } from "./readership.mjs";
 
 const origin = "https://ashtonmilton.net";
 const adminHost = "admin.ashtonmilton.net";
@@ -44,8 +46,47 @@ function loginPage(message = "", status = 200) {
     <form method="post" action="/login"><label>Admin Password<input type="password" name="password" required maxlength="64" autocomplete="current-password"></label><button type="submit">Sign In</button></form></main></html>`, "text/html; charset=utf-8", status);
 }
 
-function editPage(body, status = 200) {
-  return reply(`<!doctype html><html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Edit Work | Ashton Milton</title><link rel="stylesheet" href="/style.css"><main><p><a href="/">Site Administration</a></p><h1>Edit Work</h1>${body}</main></html>`, "text/html; charset=utf-8", status);
+function editPage(body, status = 200, title = "Edit Work") {
+  return reply(`<!doctype html><html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} | Ashton Milton</title><link rel="stylesheet" href="/style.css"><main><p><a href="/">Site Administration</a></p><h1>${escape(title)}</h1>${body}</main></html>`, "text/html; charset=utf-8", status);
+}
+
+async function contentEditor(req, env, url) {
+  const upload = url.pathname === "/upload";
+  const title = upload ? "Upload a Public File" : "Edit Site Copy";
+  if (!env.GITHUB_PUBLISH_TOKEN) return editPage("<p>Publishing is not configured.</p>", 503, title);
+  if (req.method === "POST" && req.headers.get("Origin") !== url.origin) return reply("Same-origin submission required.", "text/plain; charset=utf-8", 403);
+  try {
+    if (req.method === "POST") {
+      const form = await readForm(req, upload ? 4 * 1024 * 1024 + 8192 : 480 * 1024);
+      if (upload) {
+        const {sha, path} = await uploadFile(env.GITHUB_PUBLISH_TOKEN, form);
+        return redirect(`/upload?asset=${encodeURIComponent(path)}&commit=${sha}`);
+      }
+      const id = String(form.get("id") || "");
+      const sha = await saveCopy(id, env.GITHUB_PUBLISH_TOKEN, form);
+      return redirect(`/content?page=${encodeURIComponent(id)}&commit=${sha}`);
+    }
+    if (req.method !== "GET") return reply("Method not allowed", "text/plain; charset=utf-8", 405);
+    const sha = url.searchParams.get("commit") || "";
+    const deployment = /^[a-f0-9]{40}$/.test(sha) ? await publicationStatus(sha) : null;
+    const notice = /^[a-f0-9]{40}$/.test(sha) ? `<p class="publish-status">${escape(deployment || "Change recorded. Check GitHub Actions for deployment status.")}</p>` : "";
+    if (upload) {
+      const asset = url.searchParams.get("asset") || "";
+      const urlNotice = /^\/assets\/uploads\/[a-z0-9-]+\.(pdf|jpe?g|png|webp)$/.test(asset) ? `<p>Public path after deployment: <a href="${origin}${escape(asset)}">${escape(asset)}</a></p>` : "";
+      return editPage(`${notice}${urlNotice}<form method="post" enctype="multipart/form-data"><label>Public File<input type="file" name="file" accept=".pdf,.jpg,.jpeg,.png,.webp" required></label><p>PDF, JPEG, PNG or WebP, up to 4 MiB. Give each file a unique name.</p><label class="publish-confirm"><input type="checkbox" name="confirm" value="yes" required> I approve this file for public release.</label><button type="submit">Upload Public File</button></form>`, 200, title);
+    }
+    const id = url.searchParams.get("page");
+    if (!id) {
+      const posts = await listWriting(env.GITHUB_PUBLISH_TOKEN);
+      const links = (rows) => rows.map(([key, label]) => `<li><a href="/content?page=${encodeURIComponent(key)}">${escape(label)}</a></li>`).join("");
+      return editPage(`<h2>Main Pages</h2><ul>${links(editablePages)}</ul><h2>Existing Work</h2><ul>${links(posts.map((slug) => [`article:${slug}`, slug.replace(/-/g, " ")]))}</ul><p><a href="/edit">Edit a Piece Created in This Dashboard</a></p>`, 200, title);
+    }
+    const page = await openCopy(id, env.GITHUB_PUBLISH_TOKEN);
+    const fields = page.fields.map(({label, value}, i) => `<label class="wide">${escape(({metaTitle:"Search Title", description:"Search Description", summary:"Archive Summary", title:"Title", question:"Opening Question"})[label] || label)} ${label === "Page Copy" ? i + 1 : ""}<textarea name="copy-${i}" rows="${Math.min(7, Math.max(2, Math.ceil(value.length / 95)))}">${escape(value)}</textarea></label>`).join("");
+    return editPage(`${notice}<p><a href="/content">Choose Another Page</a></p><form method="post"><input type="hidden" name="id" value="${escape(id)}"><input type="hidden" name="previous" value="${page.previous}"><div class="form-fields">${fields}</div><label class="publish-confirm"><input type="checkbox" name="confirm" value="yes" required> I approve these changes for publication.</label><button type="submit">Publish Changes</button></form>`, 200, `Edit Copy: ${page.title}`);
+  } catch (error) {
+    return editPage(`<p>${escape(error instanceof PublishError ? error.message : "The change could not be confirmed. Check GitHub before trying again.")}</p><p><a href="${url.pathname}">Return to ${escape(title)}</a></p>`, error instanceof PublishError ? error.status : 502, title);
+  }
 }
 
 const trafficQuery = `query Readership($zone: string, $from: Date, $to: Date) {
@@ -84,6 +125,12 @@ function table(title, key, rows, dimension) {
   }</tbody></table>`;
 }
 
+function readershipTable({title, rows}) {
+  if (!rows?.length) return `<div><h3>${escape(title)}</h3><p>${rows ? "No reportable activity in this period." : "Data unavailable."}</p></div>`;
+  return `<table><caption>${escape(title)}</caption><thead><tr><th scope="col">Item</th><th scope="col">Count</th></tr></thead><tbody>${rows.map(({label, total}) =>
+    `<tr><td>${escape(label)}</td><td>${number(Number(total))}</td></tr>`).join("")}</tbody></table>`;
+}
+
 export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
@@ -120,6 +167,7 @@ export default {
         return reply("Access required", "text/plain; charset=utf-8", 403);
       }
     }
+    if (url.pathname === "/content" || url.pathname === "/upload") return contentEditor(req, env, url);
     if (req.method === "POST" && (url.pathname === "/publish" || url.pathname === "/edit")) {
       if (req.headers.get("Origin") !== url.origin) return reply("Same-origin submission required.", "text/plain; charset=utf-8", 403);
       if (!env.GITHUB_PUBLISH_TOKEN) return reply("Publishing is not configured.", "text/plain; charset=utf-8", 503);
@@ -164,11 +212,12 @@ export default {
     const commit = url.searchParams.get("commit") || "";
     const post = url.searchParams.get("post") || "";
     const receipt = /^[a-f0-9]{40}$/.test(commit) && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(post);
-    const [health, catalogue, stats, deployment] = await Promise.allSettled([
+    const [health, catalogue, stats, deployment, readerReport] = await Promise.allSettled([
       request(origin + "/?source=admin-health", {method: "HEAD"}),
       request(origin + "/catalogue.json").then((response) => response.json()),
       traffic(env),
-      receipt ? publicationStatus(commit) : null
+      receipt ? publicationStatus(commit) : null,
+      readership(env)
     ]);
     const items = catalogue.status === "fulfilled" && Array.isArray(catalogue.value) ? catalogue.value : null;
     const statsData = stats.status === "fulfilled" ? stats.value : null;
@@ -179,11 +228,14 @@ export default {
       <section><h2>Publish Work</h2>
       ${receipt ? `<div class="publish-status"><p>${escape(deployment.value || "Submission recorded. Check GitHub Actions for deployment status.")}</p>
       <p><a href="https://github.com/ashtonmilton/ashtonmilton.github.io/commit/${commit}">View Commit</a> · <a href="${origin}/writing/${post}/">Open Public URL</a> · <a href="${workflow}">Deployment Runs</a></p></div>` : ""}
-      ${env.GITHUB_PUBLISH_TOKEN ? '<p><a href="/edit">Edit Work</a></p>' + publishingForm() : "<p>Publishing is unavailable until the repository connection is configured.</p>"}</section>
+      ${env.GITHUB_PUBLISH_TOKEN ? '<p><a href="/edit">Edit Work</a> · <a href="/content">Edit Site Copy</a> · <a href="/upload">Upload a Public File</a></p>' + publishingForm() : "<p>Publishing is unavailable until the repository connection is configured.</p>"}</section>
       <section><h2>Infrastructure</h2><dl><dt>HTTPS availability</dt><dd>${health.status === "fulfilled" ? "Public site responded successfully." : "Public site check failed."} Checked ${escape(checked)} UTC.</dd>
       <dt>Deployment and monitoring</dt><dd><a href="${workflow}">GitHub Actions</a></dd>
       <dt>DNS and security events</dt><dd><a href="https://dash.cloudflare.com/">Open Cloudflare</a></dd></dl></section>
-      <section><h2>Readership</h2><p>Cloudflare edge requests, last seven days plus today (UTC). Counts can be sampled and include bots. They are not unique people or browser page views.</p>
+      <section><h2>Readership</h2><p>Browser activity from consenting readers over the last 30 days. Counts may be sampled; they do not represent unique readers or time spent reading.</p>
+      ${Array.isArray(readerReport.value) ? `<div class="tables">${readerReport.value.map(readershipTable).join("")}</div>` : "<p>Browser activity reporting is not connected.</p>"}
+      <p><a href="https://search.google.com/search-console/">Google Search Console</a> reports search queries from Google, rather than searches within Work.</p></section>
+      <section><h2>Edge Traffic</h2><p>Cloudflare edge requests, last seven days plus today (UTC). Counts can be sampled and include bots. They are not unique people or browser page views.</p>
       ${statsData ? `<div class="tables">${table("Daily Traffic", "Day", statsData.time, "date")}${table("Writing Requests", "Path", statsData.paths, "clientRequestPath")}${table("Countries", "Country", statsData.countries, "clientCountryName")}</div>`
         : "<p>Edge analytics unavailable. Check the zone permissions and dataset in Cloudflare.</p>"}
       <p><a href="https://dash.cloudflare.com/">Open Cloudflare Web Analytics</a> for browser readership and performance, once enabled.</p></section>

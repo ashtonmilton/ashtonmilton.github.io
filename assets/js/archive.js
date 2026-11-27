@@ -1,36 +1,50 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const filters = [...document.querySelectorAll("[data-filter]")];
+document.addEventListener("DOMContentLoaded", async () => {
   const tools = document.querySelector(".archive-tools");
   const input = document.querySelector("#work-search");
+  if (!tools || !input) return;
+
+  const {queryWork, rankWork, workDocument, searchTopic} = await import("./work-relevance.js?v=1");
+  const filters = [...document.querySelectorAll("[data-filter]")];
   const status = document.querySelector("[data-search-status]");
   const empty = document.querySelector("[data-empty-state]");
-  if (!tools || !input) return;
-  const fold = (text) => text.normalize("NFKC").toLocaleLowerCase("en-GB");
+  const groups = [...document.querySelectorAll("[data-archive-group]")];
+  const results = document.querySelector("[data-ranked-results]");
   const cards = [...document.querySelectorAll(".writing-card[data-category]")].map((card) => ({
-    card, url: new URL(card.href).pathname, text: fold(card.textContent)
+    card, parent: card.parentElement, url: new URL(card.href).pathname,
+    doc: workDocument({title: card.querySelector("h3")?.textContent, description: card.querySelector("p")?.textContent,
+      tags: [...card.querySelectorAll(".tag-row li")].map((tag) => tag.textContent), kind: card.dataset.category})
   }));
-  const groups = document.querySelectorAll("[data-archive-group]");
-  let active = "all";
-  let index, limited = false;
+  let active = "all", pending = false, limited = false, searching = false, index;
   let bodies = new Map();
   tools.hidden = false;
 
   function render() {
-    const terms = fold(input.value.trim()).split(/\s+/).filter(Boolean);
-    let count = 0;
-    for (const {card, url, text} of cards) {
-      const corpus = text + " " + (bodies.get(url) || "");
-      const visible = (active === "all" || card.dataset.category === active) &&
-        terms.every((term) => corpus.includes(term));
-      card.classList.toggle("is-hidden", !visible);
-      if (visible) count += 1;
+    const query = queryWork(input.value);
+    const filtered = (card) => active === "all" || card.dataset.category === active;
+    if (!query.terms.length) {
+      for (const {card, parent} of cards) {
+        if (searching) parent.append(card);
+        card.classList.toggle("is-hidden", !filtered(card));
+      }
+      groups.forEach((group) => { group.hidden = !group.querySelector(".writing-card:not(.is-hidden)"); });
+      results.hidden = true;
+      empty.hidden = cards.some(({card}) => filtered(card));
+      status.textContent = "";
+      searching = false;
+      return;
     }
-    groups.forEach((group) => { group.hidden = !group.querySelector(".writing-card:not(.is-hidden)"); });
-    empty.hidden = count !== 0;
-    status.textContent = terms.length
-      ? count + (count === 1 ? " matching piece." : " matching pieces.") +
-        (limited ? " Searching titles, descriptions and topics only." : "")
-      : "";
+    searching = true;
+    const ranked = cards.flatMap(({card, url, doc}) => {
+      const score = filtered(card) ? rankWork(bodies.get(url) || doc, query) : 0;
+      return score ? [{card, score}] : [];
+    }).sort((a, b) => b.score - a.score);
+    groups.forEach((group) => { group.hidden = true; });
+    for (const {card} of ranked) card.classList.remove("is-hidden");
+    results.replaceChildren(...ranked.map(({card}) => card));
+    results.hidden = !ranked.length;
+    empty.hidden = pending || !!ranked.length;
+    status.textContent = pending ? "Searching work…" : `${ranked.length} matching ${ranked.length === 1 ? "piece" : "pieces"}.` +
+      (limited ? " Searching titles, descriptions and topics only." : "");
   }
 
   filters.forEach((button) => button.addEventListener("click", () => {
@@ -43,14 +57,25 @@ document.addEventListener("DOMContentLoaded", () => {
   }));
 
   input.addEventListener("input", () => {
-    if (input.value.trim() && !index) {
+    if (queryWork(input.value).terms.length && !index) {
+      pending = true;
       index = fetch("/assets/search-index.json").then((response) => {
         if (!response.ok) throw new Error("Search index unavailable");
         return response.json();
-      }).then((rows) => { bodies = new Map(rows.map(({url, text}) => [url, fold(text)])); })
+      }).then((rows) => { bodies = new Map(rows.map((row) => [row.url, workDocument(row)])); })
         .catch(() => { limited = true; })
-        .finally(render);
+        .finally(() => { pending = false; render(); });
     }
     render();
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || !queryWork(input.value).terms.length) return;
+    document.dispatchEvent(new CustomEvent("work-search-topic", {detail: searchTopic(input.value)}));
+  });
+  results.addEventListener("click", (event) => {
+    if (event.target.closest(".writing-card") && queryWork(input.value).terms.length) {
+      document.dispatchEvent(new CustomEvent("work-search-topic", {detail: searchTopic(input.value)}));
+    }
   });
 });

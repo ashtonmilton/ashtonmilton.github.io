@@ -1,0 +1,29 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {applyCopy, copyFields, openCopy, uploadFile} from "./content.mjs";
+
+test("Copy edits preserve template logic, links, metadata and structure, and escape new markup", async () => {
+  const source = '---\nlayout: "base"\ndescription: "Original metadata"\n---\n<h1>Original heading</h1><a href="/contact/">Contact</a>{% if true %}<p>{{ value }}</p>{% endif %}\n<img src="/test.webp" alt="A photo.">';
+  const fields = copyFields(source, false);
+  assert.deepEqual(fields.map(({value}) => value), ["Original metadata", "Original heading", "Contact", "A photo."]);
+  const form = new Map(fields.map(({value}, i) => [`copy-${i}`, value]));
+  form.set("copy-1", 'New <script> {{ value }}');
+  const output = applyCopy(source, fields, form);
+  assert.match(output, /<h1>New &lt;script&gt; &#123;&#123; value &#125;&#125;<\/h1>/);
+  assert.ok(output.includes('<a href="/contact/">Contact</a>{% if true %}<p>{{ value }}</p>{% endif %}'));
+  await assert.rejects(openCopy("article:../../arbitrary", "unused"), /not available/);
+});
+
+test("Uploads do not accept script files or replace existing assets", async (context) => {
+  const fetch = context.mock.method(globalThis, "fetch", async () => Response.json({}, {status: 422}));
+  const form = new FormData();
+  form.set("confirm", "yes");
+  form.set("file", new Blob(["<script>"]), "policy.pdf");
+  await assert.rejects(uploadFile("token", form), /match its extension/);
+  assert.equal(fetch.mock.callCount(), 0);
+  form.set("file", new Blob(["%PDF-1.7 test"]), "policy.pdf");
+  await assert.rejects(uploadFile("token", form), /does not replace/);
+  const [url, request] = fetch.mock.calls[0].arguments;
+  assert.match(url, /\/contents\/assets\/uploads\/policy\.pdf$/);
+  assert.ok(!("sha" in JSON.parse(request.body)));
+});

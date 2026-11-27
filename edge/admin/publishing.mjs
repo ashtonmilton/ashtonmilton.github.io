@@ -18,12 +18,12 @@ export class PublishError extends Error {
   }
 }
 
-async function readForm(request) {
+export async function readForm(request, limit = maxRequestBytes) {
   const media = request.headers.get("Content-Type") || "";
   if (!/^(multipart\/form-data|application\/x-www-form-urlencoded)(?:;|$)/i.test(media)) {
     throw new PublishError("Use the publishing form to submit your work.", 415);
   }
-  if (Number(request.headers.get("Content-Length")) > maxRequestBytes || !request.body) {
+  if (Number(request.headers.get("Content-Length")) > limit || !request.body) {
     throw new PublishError("The submission is too large.", 413);
   }
   const reader = request.body.getReader();
@@ -33,7 +33,7 @@ async function readForm(request) {
     const chunk = await reader.read();
     if (chunk.done) break;
     size += chunk.value.length;
-    if (size > maxRequestBytes) {
+    if (size > limit) {
       await reader.cancel();
       throw new PublishError("The submission is too large.", 413);
     }
@@ -47,6 +47,11 @@ async function readForm(request) {
   } catch {
     throw new PublishError("The upload could not be read.");
   }
+}
+
+export function safeWriting(writing) {
+  return writing.replace(/</g, "&lt;").replace(/!\[/g, "!&#91;")
+    .replace(/!&#91;([^\]\r\n]+)\]\((\/assets\/uploads\/[a-z0-9]+(?:-[a-z0-9]+)*\.(?:jpe?g|png|webp))\)/g, "![$1]($2)");
 }
 
 function field(form, key, limit, required = true) {
@@ -109,7 +114,7 @@ export async function preparePublication(request, now = new Date()) {
     permalink: `/writing/${slug}/`, title, description: summary, summary, category, tags,
     date, lastmod: today, status: "published", readingTime};
   // No raw HTML or externally embedded images. Markdown links and headings still work.
-  const safeBody = writing.replace(/</g, "&lt;").replace(/!\[/g, "!&#91;");
+  const safeBody = safeWriting(writing);
   const frontmatter = Object.entries(metadata).map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join("\n");
   return {slug, title, markdown: `---\n${frontmatter}\n---\n\n${safeBody}\n`};
 }
@@ -191,7 +196,7 @@ export async function reviseWriting(request, token, now = new Date()) {
   const data = {...current.data, title, summary, description: summary, lastmod: `${parts.year}-${parts.month}-${parts.day}`};
   if (data.category !== "Notes") data.readingTime = `${Math.max(1, Math.ceil(writing.split(/\s+/).length / 220))}-minute read`;
   const frontmatter = Object.entries(data).map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join("\n");
-  return {slug, title, previous: current.previous, markdown: `---\n${frontmatter}\n---\n\n${writing.replace(/</g, "&lt;").replace(/!\[/g, "!&#91;")}\n`};
+  return {slug, title, previous: current.previous, markdown: `---\n${frontmatter}\n---\n\n${safeWriting(writing)}\n`};
 }
 
 export async function publicationStatus(sha) {

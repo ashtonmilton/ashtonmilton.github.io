@@ -38,13 +38,14 @@ jobs:
       - name: Build site
         env:
           CLOUDFLARE_WEB_ANALYTICS_TOKEN: ${{ vars.CLOUDFLARE_WEB_ANALYTICS_TOKEN }}
+          READERSHIP_ENABLED: ${{ vars.READERSHIP_ENABLED }}
         run: pnpm run build
 
       - name: Verify public output
         run: python3 scripts/verify-site.py
 
-      - name: Test optional About routing
-        run: node --test edge/about-localisation.test.mjs edge/admin/dashboard.test.mjs scripts/publications.test.cjs
+      - name: Test routing, administration and search
+        run: node --test edge/*.test.mjs edge/admin/*.test.mjs scripts/*.test.*
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

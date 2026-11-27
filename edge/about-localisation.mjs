@@ -1,5 +1,6 @@
 import locales from "./escap-locales.json" with { type: "json" };
 import { secureResponse } from "./security.mjs";
+import { recordReadership } from "./readership.mjs";
 
 const destinations = new Map([
   ["CN", "/zh/about/"],
@@ -49,11 +50,12 @@ export function routeAbout(request) {
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname === "/_readership") return recordReadership(request, env);
     const redirect = env.ABOUT_LOCALISATION === "on" && routeAbout(request);
     if (redirect) return redirect;
     let origin = await fetch(request);
     if (env.SECURITY_HEADERS === "on") origin = secureResponse(origin);
-    const url = new URL(request.url);
     const preference = url.searchParams.get("lang");
     if (env.ABOUT_LOCALISATION !== "on" || url.protocol !== "https:" || url.hostname !== "ashtonmilton.net" ||
         request.method !== "GET" || editions.get(preference) !== url.pathname || !origin.ok) {
