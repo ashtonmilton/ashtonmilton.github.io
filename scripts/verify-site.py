@@ -157,9 +157,12 @@ def main():
             require(any(item["@type"] == "WebSite" and item["name"] == SITE["name"] for item in page.graphs), "Missing homepage site-name schema.")
         if url in by_url:
             require(any(item["@type"] == "ProfilePage" and item["mainEntity"]["@id"] == PERSON and item["inLanguage"] == locale["lang"] for item in page.graphs), f"Missing or incorrect profile schema: {url}")
-            for profile in profiles:
-                if profile["url"] != url:
-                    require(any(urlsplit(a).path == profile["url"] for a in page.anchors), f"Missing visible language link: {url}")
+            if url == "/about/":
+                translated = set(by_url) - {"/about/"}
+                require(not translated.intersection(urlsplit(a).path for a in page.anchors), "English About exposes language links.")
+            else:
+                require("/?lang=en" in page.anchors, f"Missing English-site link: {url}")
+            destinations[url].update(urlsplit(link).path for link in page.alternates.values())
         if url == "/contact/":
             linkedin = [link for link in SITE["sameAs"] if urlsplit(link).hostname == "www.linkedin.com"]
             require(all(link in page.anchors for link in linkedin), "Contact does not link to the LinkedIn profile.")

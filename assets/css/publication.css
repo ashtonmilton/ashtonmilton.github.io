@@ -174,14 +174,25 @@
 }
 
 /* About profiles */
-.profile-name { max-width: var(--reading); margin: 2rem auto 0; }
-.profile-languages {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .75rem 1.25rem;
-  list-style: none;
-  margin-block: 0;
-  padding-block: 0 2.5rem;
+.welcome-opening { position:relative; isolation:isolate; overflow:hidden; background:#16352c; border-bottom:1px solid #c5a25355; }
+.welcome-opening::before { content:""; position:absolute; z-index:-1; inset:0; background:linear-gradient(90deg,#102a24 0%,#102a24df 38%,#102a2460 82%),linear-gradient(0deg,#102a24 0%,transparent 52%),url('/assets/images/research-hero.jpg') center 48%/cover; }
+.welcome-inner { min-height:min(67svh,650px); display:flex; flex-direction:column; justify-content:center; align-items:start; padding-block:3.25rem; }
+.welcome-inner h1 { font-size:5rem; line-height:1.03; margin:.35rem 0 1.1rem; color:#faf6ed; }
+.welcome-inner .eyebrow { color:#e0c77b; margin:0; }
+.welcome-lede { color:#faf6ed; max-width:58ch; font-size:1.12rem; line-height:1.85; margin:0 0 1.75rem; }
+.welcome-jump { color:#faf6ed; }
+.welcome-exit { border-block:1px solid #c5a25360; padding-block:2rem; margin-bottom:2rem; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:1rem 2rem; align-items:center; }
+.welcome-exit h2 { margin:0 0 .5rem; }
+.welcome-exit p { margin:0; }
+.welcome-exit .button { justify-self:start; }
+.local-edition .site-header .nav { justify-content:space-between; }
+.local-edition .site-header .nav-links { display:none; }
+@media(max-width:700px) {
+  .welcome-inner { min-height:58svh; padding-block:2.5rem; }
+  .welcome-inner h1 { font-size:3rem; }
+  .welcome-lede { font-size:1rem; }
+  .welcome-exit { grid-template-columns:1fr; }
+  .welcome-opening::before { background:linear-gradient(90deg,#102a24f0,#102a248b),url('/assets/images/research-hero.jpg') 65% center/cover; }
 }
 html[lang="zh-Hans"] main { font-family: "Avenir Custom", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
 html[lang="th"] main { font-family: "Avenir Custom", "Thonburi", "Leelawadee UI", "Noto Sans Thai", sans-serif; }

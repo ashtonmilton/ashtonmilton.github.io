@@ -3,11 +3,20 @@ layout: layouts/base.njk
 navKey: about
 lastmod: "2026-11-27"
 ---
+{% if welcome %}
+<header class="welcome-opening">
+  <div class="wrap welcome-inner">
+    <p class="eyebrow">{{ welcome.eyebrow }}</p>
+    <h1 lang="en-GB">{{ site.author }}</h1>
+    <p class="welcome-lede">{{ welcome.lede }}</p>
+    <a class="text-link welcome-jump" href="#profile">{{ welcome.jump }} <span aria-hidden="true">↓</span></a>
+  </div>
+</header>
+{% endif %}
 {{ content | safe }}
-<ul class="wrap about-reading profile-languages" aria-label="Profile languages" lang="en">
-{% for locale in aboutLocales %}
-  {% if locale.url != page.url %}
-  <li><a class="text-link" lang="{{ locale.lang }}" hreflang="{{ locale.lang }}" href="{{ locale.url }}{% if locale.url == '/about/' %}?lang=en{% endif %}">{{ locale.label }}</a></li>
-  {% endif %}
-{% endfor %}
-</ul>
+{% if welcome %}
+<section class="wrap welcome-exit">
+  <div><h2>{{ welcome.exitTitle }}</h2><p>{{ welcome.exitDescription }}</p></div>
+  <a class="button" href="/?lang=en" hreflang="en-GB">{{ welcome.exitLink }}</a>
+</section>
+{% endif %}

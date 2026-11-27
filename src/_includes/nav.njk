@@ -1,6 +1,7 @@
 <header class="site-header">
   <nav class="nav" aria-label="Main navigation" lang="en-GB">
-    <a class="brand" href="/"><img src="/assets/favicon.svg" width="32" height="32" alt=""><span>Ashton Milton</span></a>
+    <a class="brand" href="{% if welcome %}{{ page.url }}{% else %}/{% endif %}"><img src="/assets/favicon.svg" width="32" height="32" alt=""><span>Ashton Milton</span></a>
+    {% if not welcome %}
     <div class="nav-links">
       <a href="/"{% if navKey == "home" %} class="active" aria-current="page"{% endif %}>Home</a>
       <a href="/writing/"{% if navKey == "writing" %} class="active" aria-current="page"{% endif %}>Work</a>
@@ -9,5 +10,6 @@
       <a href="{% if navKey == 'about' %}{{ page.url }}{% else %}/about/{% endif %}"{% if navKey == "about" %} class="active" aria-current="page"{% endif %}>About</a>
       <a href="/contact/"{% if navKey == "contact" %} class="active" aria-current="page"{% endif %}>Contact</a>
     </div>
+    {% endif %}
   </nav>
 </header>
