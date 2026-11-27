@@ -32,7 +32,9 @@ robots = RobotFileParser()
 robots.parse(rules.splitlines())
 require(robots.site_maps() == [origin + "/sitemap.xml"], "Unexpected robots sitemap.")
 with get(origin + "/sitemap.xml") as response:
-    urls = [el.text for el in ET.fromstring(body(response)).findall(".//{*}loc")]
+    sitemap = ET.fromstring(body(response))
+    urls = [el.text for el in sitemap.findall("./{*}url/{*}loc")]
+    images = {el.text for el in sitemap.findall("./{*}url/{*}image/{*}loc")}
 
 for url in ("http://ashtonmilton.net/", "https://www.ashtonmilton.net/"):
     with get(url) as response:
@@ -57,7 +59,13 @@ def audit(task):
 
 with ThreadPoolExecutor(max_workers=6) as pool:
     checked = list(pool.map(audit, ((url, ua) for url in urls for ua in agents)))
+for url in sorted(images):
+    require(url.startswith(origin + "/"), f"Unexpected image domain in sitemap: {url}")
+    with get(url) as response:
+        require(response.status == 200 and response.url == url and response.headers.get_content_type().startswith("image/"),
+                f"Not a direct image response: {url}")
 with get(origin + "/404.html") as response:
     require("noindex" in Page(body(response).decode("utf-8")).meta.get("robots", ""), "404 is not excluded.")
 print(f"Verified {len(checked)} direct HTTPS responses across {len(urls)} sitemap pages and {len(agents)} user agents.")
+print(f"Verified {len(images)} image URLs in the sitemap.")
 print("HTTP and www redirects resolve to the apex; the standalone 404 template intentionally contains noindex.")
