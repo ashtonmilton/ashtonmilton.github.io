@@ -19,7 +19,7 @@ function reply(body, type, status = 200) {
     "X-Robots-Tag": "noindex, nofollow, noarchive",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
-    "Referrer-Policy": "no-referrer",
+    "Referrer-Policy": "same-origin",
     "Content-Security-Policy": "default-src 'none'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
   }});
 }
