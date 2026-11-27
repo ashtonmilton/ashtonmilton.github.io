@@ -1,7 +1,8 @@
 const destinations = new Map([
   ["CN", "/zh/about/"],
   ["TH", "/th/about/"],
-  ["JP", "/ja/about/"]
+  ["JP", "/ja/about/"],
+  ["VN", "/vi/about/"]
 ]);
 
 function isHomepageRequest(request, url) {

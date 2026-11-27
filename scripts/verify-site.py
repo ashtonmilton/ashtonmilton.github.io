@@ -28,6 +28,7 @@ class Page(HTMLParser):
         self.graphs = []
         self.json_text = None
         self.h1 = 0
+        self.section_counts = {"h2": 0, "h3": 0}
         self.lang = None
         self.title = ""
         self.in_title = False
@@ -51,6 +52,8 @@ class Page(HTMLParser):
             self.anchors.append(attrs["href"])
         if tag == "h1":
             self.h1 += 1
+        if tag in self.section_counts:
+            self.section_counts[tag] += 1
         if tag == "title":
             self.in_title = True
         if "id" in attrs:
@@ -162,6 +165,9 @@ def main():
                 require(not translated.intersection(urlsplit(a).path for a in page.anchors), "English About exposes language links.")
             else:
                 require("/?lang=en" in page.anchors, f"Missing English-site link: {url}")
+                english_sections = pages["/about/"].section_counts
+                require(page.section_counts == {"h2": english_sections["h2"] + 1, "h3": english_sections["h3"]},
+                        f"Translated profile sections do not match English: {url}")
             destinations[url].update(urlsplit(link).path for link in page.alternates.values())
         if url == "/contact/":
             linkedin = [link for link in SITE["sameAs"] if urlsplit(link).hostname == "www.linkedin.com"]
