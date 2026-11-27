@@ -84,7 +84,7 @@ export async function preparePublication(request, now = new Date()) {
     await updateRelated(parsed.data, form);
     publication.markdown = publicationSource(parsed.data, parsed.originalBody);
   }
-  return publication;
+  return {...publication,draftRevision:form.get("private-draft-revision")};
 }
 
 export async function updateRelated(data, form, ownUrl = data.permalink || data.adminArchivedUrl) {
@@ -263,7 +263,8 @@ export async function reviseWriting(request, token, now = new Date()) {
   if (!preserve) data.templateEngineOverride = "md";
   if (data.category === "Notes" && data.date) data.readingTime = new Intl.DateTimeFormat("en-GB", {dateStyle:"long", timeZone:"UTC"}).format(new Date(data.date));
   else if (!preserve || data.category !== current.data.category) data.readingTime = `${Math.max(1, Math.ceil(writing.split(/\s+/).length / 220))}-minute read`;
-  return {slug, title: data.title, previous: current.previous, markdown: publicationSource(data, preserve ? current.originalBody : safeWriting(writing))};
+  return {slug, title: data.title, previous: current.previous, draftRevision:form.get("private-draft-revision"),
+    markdown: publicationSource(data, preserve ? current.originalBody : safeWriting(writing))};
 }
 
 export async function publicationStatus(sha) {

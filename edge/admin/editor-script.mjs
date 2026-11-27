@@ -8,46 +8,85 @@ function setupEditor() {
   for (const form of document.querySelectorAll("form[data-draft]")) {
     const tools = form.querySelector("[data-draft-tools]");
     if (!tools) continue;
-    const key = draftPrefix + location.pathname + ":" + form.dataset.draft;
+    const address = location.pathname + ":" + form.dataset.draft;
+    const key = draftPrefix + address;
+    const endpoint = "/draft-data?key=" + encodeURIComponent(address);
     const version = form.querySelector('[name="previous"]')?.value || "";
     const receipt = new URL(location.href).searchParams.get("commit") || "";
     const status = tools.querySelector("[role=status]");
     const discard = tools.querySelector("[data-draft-discard]");
     const restore = tools.querySelector("[data-draft-restore]");
-    const fields = () => [...form.elements].filter((field) => field.name && !field.disabled &&
+    const saveButton = tools.querySelector("[data-draft-save]");
+    const revisionControl = document.createElement("input");
+    revisionControl.type = "hidden";
+    revisionControl.name = "private-draft-revision";
+    form.append(revisionControl);
+    const fields = () => [...form.elements].filter((field) => field.name && (!field.disabled || field.dataset.field === "pair") &&
       field.name !== "confirm" && !["file","hidden","submit","button"].includes(field.type));
-    let draft;
+    let draft, local, revision = 0;
+    const heading = () => form.querySelector('[name="title"]')?.value.trim() || document.querySelector("h1").textContent.trim();
+    const snapshot = () => ({version,receipt,savedAt:Date.now(),fields:fields().map((field) => field.type === "checkbox" ? [field.name,field.value,field.checked] : [field.name,field.value])});
+    function localBackup(next) {
+      try { sessionStorage.setItem(key,JSON.stringify(next)); local = next; } catch {}
+    }
     function update() {
       discard.hidden = !draft;
       restore.hidden = !draft || draft.version !== version;
+      discard.disabled = false;
+      revisionControl.value = revision || "";
       if (draft && draft.version !== version) status.textContent = "A draft belongs to an older version of this item. It cannot replace newer changes.";
     }
-    function save() {
-      const next = {version, receipt, fields: fields().map((field) => field.type === "checkbox" ? [field.name,field.value,field.checked] : [field.name,field.value])};
-      try {
-        sessionStorage.setItem(key,JSON.stringify(next));
-        draft = next;
-        update();
-        status.textContent = "Draft saved in this tab. Files are not saved with drafts.";
-      } catch { status.textContent = "The browser could not save a draft."; }
+    async function send(body) {
+      const res = await fetch(endpoint,body ? {method:"POST",body:new URLSearchParams(body)} : {});
+      if (res.status === 401) throw new Error("Sign in again to sync private drafts.");
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "The draft could not be synced.");
+      return result;
     }
     try {
-      draft = JSON.parse(sessionStorage.getItem(key));
-      if (draft && /^[a-f0-9]{40}$/.test(receipt) && draft.receipt !== receipt) {
+      local = JSON.parse(sessionStorage.getItem(key));
+      if (local && /^[a-f0-9]{40}$/.test(receipt) && local.receipt !== receipt) {
         sessionStorage.removeItem(key);
-        draft = null;
+        local = null;
       }
-      if (draft && !Array.isArray(draft.fields)) draft = null;
-      tools.hidden = false;
-      update();
-    } catch { continue; }
-    tools.querySelector("[data-draft-save]").addEventListener("click",save);
-    form.addEventListener("submit",save);
-    discard.addEventListener("click",() => {
-      sessionStorage.removeItem(key);
-      draft = null;
-      update();
-      status.textContent = "Saved draft discarded.";
+      if (local && !Array.isArray(local.fields)) local = null;
+    } catch {}
+    tools.hidden = false;
+    saveButton.disabled = true;
+    status.textContent = "Checking for a private draft.";
+    send().then((synced) => {
+      revision = synced?.revision || 0;
+      draft = local && (!synced || local.savedAt > Date.parse(synced.updated)) ? local : synced;
+      status.textContent = synced ? "Private draft available. Restore it to continue editing." : local ? "An unsynced draft is available in this tab." : "";
+    }).catch((error) => {
+      draft = local;
+      status.textContent = error.message;
+    }).finally(() => { saveButton.disabled = false; update(); });
+    saveButton.addEventListener("click",async () => {
+      const next = snapshot();
+      localBackup(next);
+      saveButton.disabled = true;
+      try {
+        draft = await send({revision,version,title:heading().slice(0,160),fields:JSON.stringify(next.fields)});
+        revision = draft.revision;
+        update();
+        status.textContent = "Private draft synced. Nothing was published.";
+      } catch (error) {
+        if (!draft) { draft = local; update(); }
+        status.textContent = error.message;
+      } finally { saveButton.disabled = false; }
+    });
+    form.addEventListener("submit",() => localBackup(snapshot()));
+    discard.addEventListener("click",async () => {
+      discard.disabled = true;
+      try {
+        if (revision) await send({action:"discard",revision});
+        try { sessionStorage.removeItem(key); } catch {}
+        draft = local = null;
+        revision = 0;
+        update();
+        status.textContent = "Saved draft discarded.";
+      } catch (error) { status.textContent = error.message; discard.disabled = false; }
     });
     restore.addEventListener("click",() => {
       if (!draft || draft.version !== version) return;
@@ -58,6 +97,7 @@ function setupEditor() {
         if (field.type === "checkbox") field.checked = entry.checked;
         else if (!field.options || [...field.options].some((item) => item.value === entry.value)) field.value = entry.value;
       }
+      form.dispatchEvent(new Event("editor-draft-restored"));
       status.textContent = "Draft restored. No changes have been published.";
     });
   }
@@ -133,7 +173,7 @@ function setupEditor() {
     if (!path) { image.hidden = true; image.removeAttribute("src"); return; }
     if (reset) { field(card, "width").value = ""; field(card, "height").value = ""; }
     image.hidden = false;
-    const local = queued.get(path);
+    const local = queued.get(path) || field(card,"photo").selectedOptions[0]?.dataset.preview;
     image.onload = () => {
       if (!field(card, "width").value) field(card, "width").value = image.naturalWidth;
       if (!field(card, "height").value) field(card, "height").value = image.naturalHeight;
@@ -188,7 +228,6 @@ function setupEditor() {
   gallery.querySelector("[data-upload-images]").addEventListener("click", async (event) => {
     const input = gallery.querySelector("[data-new-images]");
     if (!input.files.length) { status.textContent = "Choose one or more images first."; return; }
-    if (!gallery.querySelector("[data-approve-images]").checked) { status.textContent = "Confirm that the selected images may go in the public repository."; return; }
     event.target.disabled = true;
     const submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
@@ -197,12 +236,15 @@ function setupEditor() {
         status.textContent = `Uploading ${file.name}…`;
         const payload = new FormData();
         payload.append("file", file);
-        payload.append("confirm", "yes");
-        const response = await fetch("/upload", {method: "POST", body: payload, headers: {Accept: "application/json"}});
+        const response = await fetch("/draft-image", {method: "POST", body: payload, headers: {Accept: "application/json"}});
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Upload not confirmed.");
-        queued.set(result.path, URL.createObjectURL(file));
-        for (const card of parts()) field(card, "photo").add(new Option(file.name, result.path));
+        queued.set(result.path, result.preview);
+        for (const card of parts()) {
+          const option = new Option(`${result.label} (private)`, result.path);
+          option.dataset.preview = result.preview;
+          field(card,"photo").add(option);
+        }
         const slot = parts().find((card) => !field(card, "photo").value);
         if (slot) {
           field(slot, "photo").value = result.path;
@@ -211,10 +253,10 @@ function setupEditor() {
         }
       }
       input.value = "";
-      status.textContent = "Files uploaded. Add the captions and descriptions before publishing the essay.";
+      status.textContent = "Images stored privately. Add captions and save a private draft.";
       arrange();
     } catch (error) {
-      status.textContent = `${error.message} Any earlier successful uploads remain in the public files list.`;
+      status.textContent = `${error.message} Earlier successful uploads remain available privately.`;
     } finally {
       event.target.disabled = false;
       submit.disabled = false;
@@ -223,6 +265,13 @@ function setupEditor() {
 
   for (const card of parts()) preview(card);
   arrange();
+  form.addEventListener("editor-draft-restored", () => {
+    for (const card of parts()) {
+      if (field(card,"photo").value) card.open = true;
+      preview(card);
+    }
+    arrange();
+  });
 }
 
 export const editorScript = `(${setupEditor.toString()})();`;

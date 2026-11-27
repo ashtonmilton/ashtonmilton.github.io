@@ -1,15 +1,18 @@
 import {PublishError} from "./publishing.mjs";
 import {parseFragment} from "parse5";
+import {applyEdition, editionFields, generatedProfiles} from "./translations.mjs";
 
 const fixed = new Map([
   ["home", ["Home", "src/index.njk"]], ["work", ["Work", "src/writing/index.njk"]],
   ["research", ["Research", "src/research.njk"]], ["policy", ["Policy Analysis", "src/policy-analysis.njk"]],
   ["about", ["About", "src/about.njk"]], ["contact", ["Contact", "src/contact.njk"]],
   ["about-zh", ["About (Simplified Chinese)", "src/about-zh.njk"]], ["about-ja", ["About (Japanese)", "src/about-ja.njk"]],
-  ["about-th", ["About (Thai)", "src/about-th.njk"]], ["about-vi", ["About (Vietnamese)", "src/about-vi.njk"]]
+  ["about-th", ["About (Thai)", "src/about-th.njk"]], ["about-vi", ["About (Vietnamese)", "src/about-vi.njk"]],
+  ["not-found", ["Page Not Found", "src/404.njk"]]
 ]);
 const api = "https://api.github.com/repos/ashtonmilton/ashtonmilton.github.io/contents/";
 export const editablePages = [...fixed].map(([id, [title]]) => [id, title]);
+export const translatedPages = [...generatedProfiles].map(([id, {title}]) => [id,title]).sort((a,b) => a[1].localeCompare(b[1],"en-GB"));
 const validPost = /^article:([a-z0-9]+(?:-[a-z0-9]+)*)$/;
 const metadataKeys = new Set(["title", "metaTitle", "description", "summary", "question", "readingTime"]);
 const welcomeKeys = new Set(["eyebrow", "jump", "lede", "exitTitle", "exitDescription", "exitLink"]);
@@ -24,6 +27,10 @@ function base64(bytes) {
 }
 
 function resolvePage(id) {
+  if (generatedProfiles.has(id)) {
+    const edition = generatedProfiles.get(id);
+    return {title:edition.title,path:edition.path,edition};
+  }
   const article = validPost.exec(id);
   if (article && id.length <= 98) return {title: article[1].replace(/-/g, " "), path: `src/writing/essays/${article[1]}.md`, markdown: true};
   if (fixed.has(id)) { const [title, path] = fixed.get(id); return {title, path, markdown: false}; }
@@ -271,25 +278,35 @@ export function applyCopy(source, fields, submitted) {
 
 const headers = (token) => ({Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "User-Agent": "AshtonMilton-Editor", "Content-Type": "application/json"});
 
-export async function openCopy(id, token) {
+export async function openCopy(id, token, ref="main") {
   const page = resolvePage(id);
-  const response = await fetch(`${api}${page.path}?ref=main`, {headers: headers(token), redirect: "manual", signal: AbortSignal.timeout(5500)});
+  const response = await fetch(`${api}${page.path}?ref=${ref}`, {headers: headers(token), redirect: "manual", signal: AbortSignal.timeout(5500)});
   if (!response.ok) throw new PublishError("The source file could not be opened.", response.status === 404 ? 404 : 502);
   const file = await response.json();
   if (file.type !== "file" || file.encoding !== "base64" || file.size > byteLimit || !/^[a-f0-9]{40}$/.test(file.sha || "")) throw new PublishError("This file cannot be opened here.", 409);
   const source = new TextDecoder("utf-8", {fatal: true}).decode(Uint8Array.from(atob(file.content.replace(/\s/g, "")), (byte) => byte.charCodeAt(0)));
+  if (page.edition) {
+    const {raw,fields} = editionFields(source,page.edition);
+    const previous = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",encoder.encode(raw))), (byte) => byte.toString(16).padStart(2,"0")).join("");
+    return {...page,previous,fileSha:file.sha,source,fields};
+  }
   if (page.markdown && /^dashboardEditable: true$/m.test(source.split(/^---$/m)[1] || "")) throw new PublishError("Use Edit Work for pieces created in this dashboard.", 409);
   return {...page, previous: file.sha, source, fields: copyFields(source, page.markdown, id)};
+}
+
+export function applyPageCopy(page,form,source=page.source) {
+  if (form.get("previous") !== page.previous) throw new PublishError("This page changed after you opened it. Reopen it before trying again.",409);
+  const updated = page.edition ? applyEdition(source,page.edition,form) : applyCopy(source,page.fields,form);
+  if (encoder.encode(updated).length > byteLimit) throw new PublishError("The updated page is too large.",413);
+  return updated;
 }
 
 export async function saveCopy(id, token, form) {
   if (form.get("confirm") !== "yes") throw new PublishError("Confirm that these changes may be published.");
   const page = await openCopy(id, token);
-  if (form.get("previous") !== page.previous) throw new PublishError("This page changed after you opened it. Reopen it before trying again.", 409);
-  const bytes = encoder.encode(applyCopy(page.source, page.fields, form));
-  if (bytes.length > byteLimit) throw new PublishError("The updated page is too large.", 413);
+  const bytes = encoder.encode(applyPageCopy(page,form));
   const response = await fetch(api + page.path, {method: "PUT", headers: headers(token), redirect: "manual", signal: AbortSignal.timeout(9000),
-    body: JSON.stringify({branch: "main", message: `Edit website copy: ${page.title}`, sha: page.previous, content: base64(bytes)})});
+    body: JSON.stringify({branch: "main", message: `Edit website copy: ${page.title}`, sha: page.fileSha || page.previous, content: base64(bytes)})});
   if (response.status === 409 || response.status === 422) throw new PublishError("GitHub declined the change. Reopen this page before trying again.", 409);
   if (response.status !== 200) throw new PublishError("GitHub did not accept the edit.", 502);
   const sha = (await response.json()).commit?.sha;

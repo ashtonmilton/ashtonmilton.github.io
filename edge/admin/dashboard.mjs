@@ -1,6 +1,9 @@
 import { editableWriting, listWriting, preparePublication, publicationStatus, publishingForm, PublishError, readForm, reviseWriting, submitPublication } from "./publishing.mjs";
 import { endSession, localLoginReady, loginInput, matchesPassword, startSession, validSession } from "./session.mjs";
-import { editablePages, openCopy, saveCopy, uploadFile } from "./content.mjs";
+import { editablePages, translatedPages, openCopy, saveCopy, uploadFile } from "./content.mjs";
+import {draftAction, draftDestination, draftList, finishDraft} from "./drafts.mjs";
+import {discardUnusedImage, draftImage, draftImages, stageImage} from "./draft-media.mjs";
+import {releasePages} from "./page-release.mjs";
 import { readership } from "./readership.mjs";
 import {eligibleFeatured, featuredSettings, imageLimit, saveFeatured, savePhotoEssay, uploadedImages} from "./editorial.mjs";
 import {changeVisibility, listAssets, removeAsset} from "./removal.mjs";
@@ -28,7 +31,7 @@ function reply(body, type, status = 200) {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "same-origin",
-    "Content-Security-Policy": "default-src 'none'; style-src 'self'; script-src 'self'; img-src https://ashtonmilton.net blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+    "Content-Security-Policy": "default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' https://ashtonmilton.net blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
   }});
 }
 
@@ -58,10 +61,10 @@ function editPage(body, status = 200, title = "Edit Work") {
 
 const approved = '<label class="publish-confirm"><input type="checkbox" name="confirm" value="yes" required> I approve this for publication.</label>';
 const option = (value, label, selected) => `<option value="${escape(value)}"${value === selected ? " selected" : ""}>${escape(label)}</option>`;
-const editorialLinks = [["/", "Overview"], ["/content", "Pages"], ["/edit", "Work"], ["/featured", "Featured Work"], ["/photos", "New Photo Essay"], ["/media", "Public Files"]];
+const editorialLinks = [["/", "Overview"], ["/drafts", "Drafts"], ["/content", "Pages"], ["/edit", "Work"], ["/featured", "Featured Work"], ["/photos", "New Photo Essay"], ["/media", "Public Files"]];
 const editorialNav = () => `<nav class="admin-nav" aria-label="Editorial tools">${editorialLinks.map(([href,label]) => `<a href="${href}">${label}</a>`).join("")}</nav>`;
 const workflowCss = `.admin-nav{display:flex;flex-wrap:wrap;gap:.25rem 1rem;margin:0 0 1rem}.admin-nav a{padding:.35rem 0}.admin-nav [aria-current]{color:#faf6ed;font-weight:650;text-underline-offset:.25em}.draft-tools{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:1rem 0}.draft-tools p{flex-basis:100%;margin:0}.draft-tools button{background:none;border:1px solid #faf6ed70;color:#faf6ed}.list-tools{display:flex;flex-wrap:wrap;align-items:end;gap:.75rem}.list-tools label{flex:1 1 12rem}.work-list{padding-inline-start:1.25rem}.work-list li{padding:.35rem 0}`;
-const draftTools = '<div class="draft-tools" data-draft-tools hidden><button type="button" data-draft-save>Save Draft in This Tab</button><button type="button" data-draft-restore hidden>Restore Draft</button><button type="button" data-draft-discard hidden>Discard Draft</button><p role="status"></p></div>';
+const draftTools = '<div class="draft-tools" data-draft-tools hidden><button type="button" data-draft-save>Save Private Draft</button><button type="button" data-draft-restore hidden>Restore Draft</button><button type="button" data-draft-discard hidden>Discard Draft</button><p role="status"></p></div>';
 const publicLink = (path) => typeof path === "string" && /^\/(?:[a-z0-9-]+\/)*$/.test(path) ?
   `<a href="${origin}${escape(path)}" target="_blank" rel="noopener">View Live Page</a>` : "";
 
@@ -128,7 +131,8 @@ async function editorialPage(req, env, url) {
     if (req.method === "POST") {
       const form = await readForm(req);
       if (photos) {
-        const {slug, sha} = await savePhotoEssay(form, env.GITHUB_PUBLISH_TOKEN);
+        const {slug, sha} = await savePhotoEssay(form, env.GITHUB_PUBLISH_TOKEN, env.EDITORIAL_DB);
+        await finishDraft(env.EDITORIAL_DB,`/photos:${form.get("previous") ? slug : "new"}`,form.get("private-draft-revision"));
         return redirect(`/photos?post=${encodeURIComponent(slug)}&commit=${sha}`);
       }
       const sha = await saveFeatured(form, env.GITHUB_PUBLISH_TOKEN);
@@ -145,17 +149,22 @@ async function editorialPage(req, env, url) {
       return editPage(`${notice}<form method="post"><input type="hidden" name="previous" value="${escape(selection.sha)}"><div class="form-fields">${choices}</div>${approved}<button type="submit">Publish Featured Work</button></form>`, 200, title);
     }
     const post = url.searchParams.get("post");
-    const [images, article] = await Promise.all([uploadedImages(env.GITHUB_PUBLISH_TOKEN), post ? editableWriting(post, env.GITHUB_PUBLISH_TOKEN) : null]);
+    const [images, article, staged] = await Promise.all([uploadedImages(env.GITHUB_PUBLISH_TOKEN), post ? editableWriting(post, env.GITHUB_PUBLISH_TOKEN) : null, draftImages(env.EDITORIAL_DB)]);
     if (article && !Array.isArray(article.photos)) throw new PublishError("This piece does not use the photo essay editor.", 409);
     const data = article?.data || {};
-    const available = [...new Set([...(article?.photos || []).map((photo) => photo.src), ...images])];
+    const stagedLookup = new Map(staged.map((entry) => [entry.path,entry]));
+    const available = [...new Set([...(article?.photos || []).map((photo) => photo.src), ...images,...stagedLookup.keys()])];
+    const photoOption = (path,selected) => {
+      const upload = stagedLookup.get(path);
+      return upload ? `<option data-preview="${escape(upload.preview)}" value="${escape(path)}"${path === selected ? " selected" : ""}>${escape(upload.label)} (private)</option>` : option(path,path.split("/").at(-1),selected);
+    };
     const rows = Array.from({length: imageLimit}, (_, i) => {
       const n = i + 1, item = article?.photos[i] || {};
       return `<details data-photo${n <= 2 || item.src ? " open" : ""}><summary data-number>Photograph ${n}</summary>
         <div class="photo-edit-grid"><div><img class="photo-preview" alt=""${item.src ? ` src="${origin}${escape(item.src)}"` : " hidden"}><div class="photo-actions">
         <button type="button" data-drag draggable="true" title="Drag to reorder" aria-label="Drag to reorder">↕</button><button type="button" data-up title="Move up" aria-label="Move photograph up">↑</button><button type="button" data-down title="Move down" aria-label="Move photograph down">↓</button><button type="button" data-remove title="Remove photograph from essay" aria-label="Remove photograph from essay">×</button></div></div>
         <div class="form-fields">
-        <label class="wide">Image<select name="photo-${n}" data-field="photo">${option("", "No Image", item.src || "")}${available.map((image) => option(image, image.split("/").at(-1), item.src)).join("")}</select></label>
+        <label class="wide">Image<select name="photo-${n}" data-field="photo">${option("", "No Image", item.src || "")}${available.map((image) => photoOption(image,item.src)).join("")}</select></label>
         <label>Width in Pixels<input type="number" min="1" max="20000" name="width-${n}" data-field="width" value="${escape(item.width || "")}"></label><label>Height in Pixels<input type="number" min="1" max="20000" name="height-${n}" data-field="height" value="${escape(item.height || "")}"></label>
         <label>Location<input name="place-${n}" data-field="place" maxlength="100" value="${escape(item.place || "")}"></label><label>Image Description<input name="alt-${n}" data-field="alt" maxlength="350" value="${escape(item.alt || "")}"></label>
         <label class="wide">Caption<textarea name="caption-${n}" data-field="caption" maxlength="1000" rows="2">${escape(item.caption || "")}</textarea></label><label class="wide">Note After Image<textarea name="notes-${n}" data-field="notes" maxlength="4000" rows="3">${escape(item.notes || "")}</textarea></label>
@@ -164,9 +173,9 @@ async function editorialPage(req, env, url) {
     const identityFields = article ? `<input type="hidden" name="slug" value="${escape(article.slug)}"><input type="hidden" name="previous" value="${escape(article.previous)}">` : "";
     const sha = url.searchParams.get("commit") || "";
     const notice = /^[a-f0-9]{40}$/.test(sha) ? `<p class="publish-status">${escape(await publicationStatus(sha) || "Change recorded in GitHub.")}</p>` : "";
-    return editPage(`${notice}${data.status !== "archived" && data.permalink ? `<p>${publicLink(data.permalink)}</p>` : ""}<form method="post">${identityFields}<div class="form-fields">${articleFields(data)}
+    return editPage(`${notice}${data.status !== "archived" && data.permalink ? `<p>${publicLink(data.permalink)}</p>` : ""}<form method="post" data-draft="${escape(article?.slug || "new")}">${identityFields}${draftTools}<div class="form-fields">${articleFields(data)}
       <label class="wide">Opening Question<input name="question" required maxlength="300" value="${escape(data.question || "")}"></label><label class="wide">Introduction<textarea name="writing" rows="5">${escape(article?.writing || "")}</textarea></label></div>
-      <section data-photo-editor><h2>Photographs</h2><label>Choose Images<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-new-images></label><label class="publish-confirm"><input type="checkbox" data-approve-images> These images may be uploaded to the public repository.</label><button type="button" data-upload-images>Upload Images</button><p role="status" data-photo-status></p>
+      <section data-photo-editor><h2>Photographs</h2><label>Choose Images<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-new-images></label><button type="button" data-upload-images>Upload Private Images</button><p>Private images are not public until you publish a photo essay. Save a private draft to keep selections, captions and order.</p><p role="status" data-photo-status></p>
       <div data-photo-cards>${rows}</div></section>${await relatedFields(data)}${approved}<button type="submit">${data.status === "archived" ? "Save Unpublished Changes" : article ? "Publish Changes" : "Publish Photo Essay"}</button></form>${article ? removalForm(article) : ""}`, 200, article?.data.title || title);
   } catch (error) {
     return editPage(`<p role="alert">${escape(error instanceof PublishError ? error.message : "GitHub did not confirm this request. Check the repository before submitting again.")}</p><p><a href="${escape(url.pathname + url.search)}">Return to ${escape(title)}</a></p>`, error instanceof PublishError ? error.status : 502, title);
@@ -188,6 +197,7 @@ async function contentEditor(req, env, url) {
       }
       const id = String(form.get("id") || "");
       const sha = await saveCopy(id, env.GITHUB_PUBLISH_TOKEN, form);
+      await finishDraft(env.EDITORIAL_DB,`/content:${id}`,form.get("private-draft-revision"));
       return redirect(`/content?page=${encodeURIComponent(id)}&commit=${sha}`);
     }
     if (req.method !== "GET") return reply("Method not allowed", "text/plain; charset=utf-8", 405);
@@ -202,23 +212,24 @@ async function contentEditor(req, env, url) {
     const id = url.searchParams.get("page");
     if (!id) {
       const links = (rows) => rows.map(([key, label]) => `<li><a href="/content?page=${encodeURIComponent(key)}">${escape(label)}</a></li>`).join("");
-      return editPage(`<h2>Main Pages</h2><ul>${links(editablePages)}</ul><p><a href="/edit">Edit Articles, Notes and Photo Essays</a></p>`, 200, title);
+      return editPage(`<h2>Main Pages</h2><ul>${links(editablePages.filter(([id]) => !id.startsWith("about-")))}</ul><details><summary>Language Profiles</summary><ul>${links([...editablePages.filter(([id]) => id.startsWith("about-")),...translatedPages])}</ul></details><p><a href="/edit">Edit Articles, Notes and Photo Essays</a></p>`, 200, title);
     }
     if (/^article:[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) return redirect(`/edit?post=${encodeURIComponent(id.slice(8))}`);
     const page = await openCopy(id, env.GITHUB_PUBLISH_TOKEN);
     const groups = new Map();
     const documentPage = ["research", "policy"].includes(id);
+    const fieldLanguage = page.edition ? ` lang="${escape(page.edition.lang)}" dir="${page.edition.dir}"` : "";
     for (const [i, {label, value, group, compact, type}] of page.fields.entries()) {
       const body = type.startsWith("document-"), references = type.startsWith("references-");
-      const control = compact && value.length < 145 && !/[\r\n]/.test(value) ? `<input name="copy-${i}" value="${escape(value)}">` :
-        `<textarea name="copy-${i}" rows="${Math.min(body || references ? 16 : 7, Math.max(2, value.split("\n").length + Math.ceil(value.length / 105)))}">${escape(value)}</textarea>`;
+      const control = compact && value.length < 145 && !/[\r\n]/.test(value) ? `<input name="copy-${i}" value="${escape(value)}"${fieldLanguage}>` :
+        `<textarea name="copy-${i}"${fieldLanguage} rows="${Math.min(body || references ? 16 : 7, Math.max(2, value.split("\n").length + Math.ceil(value.length / 105)))}">${escape(value)}</textarea>`;
       const tools = body ? `<div class="related-actions"><button type="button" data-copy-heading="##">Add Heading</button>${id === "research" ? '<button type="button" data-copy-heading="###">Add Subheading</button>' : ""}</div><small>Separate paragraphs with a blank line.</small>` : references ? "<small>Separate reference entries with a blank line.</small>" : "";
       groups.set(group, (groups.get(group) || "") + `<div class="wide" ${body ? "data-copy-body" : ""}><label>${escape(label)}${control}</label>${tools}</div>`);
     }
     const fields = [...groups].sort(([a],[b]) => Number(a === "Search and Sharing") - Number(b === "Search and Sharing")).map(([group, controls]) =>
-      documentPage || group === "Search and Sharing" ? `<details class="copy-group"${group === "Page Header" || group === "Document Title and Details" ? " open" : ""}><summary>${escape(group)}</summary><div class="form-fields">${controls}</div></details>` :
+      documentPage || page.edition || group === "Search and Sharing" ? `<details class="copy-group"${["Page Header","Document Title and Details","Profile"].includes(group) ? " open" : ""}><summary>${escape(group)}</summary><div class="form-fields">${controls}</div></details>` :
         `<fieldset class="copy-group"><legend>${escape(group)}</legend><div class="form-fields">${controls}</div></fieldset>`).join("");
-    const liveLink = publicLink(/^permalink: "([^"]+)"$/m.exec(page.source)?.[1]);
+    const liveLink = publicLink(page.edition?.url || /^permalink: "([^"]+)"$/m.exec(page.source)?.[1]);
     return editPage(`${notice}<p><a href="/content">Choose Another Page</a>${liveLink ? ` · ${liveLink}` : ""}</p><form method="post" class="copy-editor" data-draft="${escape(id)}"><input type="hidden" name="id" value="${escape(id)}"><input type="hidden" name="previous" value="${page.previous}">${draftTools}${fields}<label class="publish-confirm"><input type="checkbox" name="confirm" value="yes" required> I approve these changes for publication.</label><button type="submit">Publish Changes</button></form>`, 200, `Edit ${page.title}`);
   } catch (error) {
     if (upload && req.headers.get("Accept") === "application/json") return reply(JSON.stringify({error: error instanceof PublishError ? error.message : "GitHub did not confirm this upload."}), "application/json; charset=utf-8", error instanceof PublishError ? error.status : 502);
@@ -312,6 +323,52 @@ export default {
         return reply("Access required", "text/plain; charset=utf-8", 403);
       }
     }
+    if (url.pathname === "/draft-image" || url.pathname.startsWith("/draft-image/")) {
+      if (!env.EDITORIAL_DB) return reply(JSON.stringify({error:"Private image storage is unavailable."}),"application/json; charset=utf-8",503);
+      try {
+        if (url.pathname === "/draft-image") return reply(JSON.stringify(await stageImage(req,env.EDITORIAL_DB,url)),"application/json; charset=utf-8",201);
+        if (req.method !== "GET") return reply("Method not allowed.","text/plain; charset=utf-8",405);
+        const image = await draftImage(env.EDITORIAL_DB,url.pathname.split("/").at(-1));
+        return image ? reply(image.bytes,image.type) : reply("Image not found.","text/plain; charset=utf-8",404);
+      } catch (error) {
+        return reply(JSON.stringify({error:error instanceof PublishError ? error.message : "The private image could not be stored or retrieved."}),"application/json; charset=utf-8",error instanceof PublishError ? error.status : 503);
+      }
+    }
+    if (url.pathname === "/drafts" || url.pathname === "/draft-data") {
+      const json = (body,status=200) => reply(JSON.stringify(body),"application/json; charset=utf-8",status);
+      const db = env.EDITORIAL_DB;
+      if (!db) return url.pathname === "/draft-data" ? json({error:"Private draft storage is unavailable."},503) : editPage("<p>Private draft storage is unavailable.</p>",503,"Private Drafts");
+      try {
+        if (url.pathname === "/draft-data") return json(await draftAction(req,db,url));
+        if (req.method === "POST") {
+          if (req.headers.get("Origin") !== url.origin) return reply("Same-origin submission required.","text/plain; charset=utf-8",403);
+          const form = await readForm(req);
+          if (form.has("unused-image")) {
+            if (form.get("confirm") !== "yes") throw new PublishError("Confirm removal of this private image.");
+            await discardUnusedImage(db,String(form.get("unused-image")));
+            return redirect("/drafts");
+          }
+          if (!env.GITHUB_PUBLISH_TOKEN) throw new PublishError("Publishing is not configured.",503);
+          return redirect(`/drafts?commit=${await releasePages(db,env.GITHUB_PUBLISH_TOKEN,form)}`);
+        }
+        if (req.method !== "GET") return reply("Method not allowed.", "text/plain; charset=utf-8",405);
+        const [rows,images] = await Promise.all([draftList(db),draftImages(db)]);
+        const commit = url.searchParams.get("commit") || "";
+        const deployment = /^[a-f0-9]{40}$/.test(commit) ? `<p class="publish-status">${escape(await publicationStatus(commit) || "Release recorded. Check GitHub Actions for deployment status.")}</p>` : "";
+        const date = new Intl.DateTimeFormat("en-GB",{dateStyle:"medium",timeStyle:"short",timeZone:"Europe/London"});
+        const pageRows = rows.filter(({draft_key}) => draft_key.startsWith("/content:"));
+        const otherRows = rows.filter(({draft_key}) => !draft_key.startsWith("/content:"));
+        const row = ({draft_key,title,updated}) => `<a href="${escape(draftDestination(draft_key))}">${escape(title)}</a> · <small>${escape(date.format(new Date(updated)))}</small>`;
+        const pageList = pageRows.length ? `<h2>Page Drafts</h2><form method="post">${pageRows.map((entry) => `<p><input type="checkbox" name="page-release" aria-label="Publish ${escape(entry.title)}" value="${escape(entry.draft_key)}|${entry.revision}"> ${row(entry)}</p>`).join("")}<p>Select up to 10 page drafts to publish in one deployment.</p>${approved}<button type="submit">Publish Selected Pages</button></form>` : "";
+        const workList = otherRows.length ? `<h2>Work Drafts</h2><ul>${otherRows.map((entry) => `<li>${row(entry)}</li>`).join("")}</ul>` : "";
+        const imageList = images.length ? `<details><summary>Private Images (${images.length})</summary><ul>${images.map(({path,preview,label}) => `<li><a href="${escape(preview)}">${escape(label)}</a> <form method="post"><input type="hidden" name="unused-image" value="${escape(path)}"><label><input type="checkbox" name="confirm" value="yes" required> Confirm Removal</label><button type="submit">Remove Unused Image</button></form></li>`).join("")}</ul></details>` : "";
+        return editPage(`${deployment}<p>Drafts are private and do not deploy the website. Open an item to restore or discard its draft.</p>${pageList || workList ? pageList+workList : "<p>No private drafts.</p>"}${imageList}`,200,"Private Drafts");
+      } catch (error) {
+        const message = error instanceof PublishError ? error.message : "Private draft storage could not be reached.";
+        const status = error instanceof PublishError ? error.status : 503;
+        return url.pathname === "/draft-data" ? json({error:message},status) : editPage(`<p role="alert">${escape(message)}</p>`,status,"Private Drafts");
+      }
+    }
     if (url.pathname === "/content" || url.pathname === "/upload") return contentEditor(req, env, url);
     if (url.pathname === "/featured" || url.pathname === "/photos") return editorialPage(req, env, url);
     if (url.pathname === "/visibility" || url.pathname === "/media") return removalPage(req, env, url);
@@ -321,6 +378,7 @@ export default {
       try {
         const publication = url.pathname === "/edit" ? await reviseWriting(req, env.GITHUB_PUBLISH_TOKEN) : await preparePublication(req);
         const commit = await submitPublication(publication, env.GITHUB_PUBLISH_TOKEN);
+        await finishDraft(env.EDITORIAL_DB,url.pathname === "/edit" ? `/edit:${publication.slug}` : "/:new",publication.draftRevision);
         if (url.pathname === "/edit") return redirect(`/edit?post=${encodeURIComponent(publication.slug)}&commit=${commit}`);
         const destination = new URL("/", url.origin);
         destination.searchParams.set("commit", commit);

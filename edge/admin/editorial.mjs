@@ -1,5 +1,7 @@
 import {editableWriting, listWriting, publicationFromForm, PublishError, publicationSource, revisePhotoMetadata, submitPublication, updateArticleFields, updateRelated} from "./publishing.mjs";
 import {parseWriting} from "./legacy.mjs";
+import {draftImages} from "./draft-media.mjs";
+import {releasePhotoWithImages} from "./photo-release.mjs";
 
 const api = "https://api.github.com/repos/ashtonmilton/ashtonmilton.github.io/contents/";
 const featuredFile = "src/_data/homeFeatured.json";
@@ -95,11 +97,12 @@ export function photoSelection(form, available, existing = []) {
   return photos;
 }
 
-export async function savePhotoEssay(form, token) {
+export async function savePhotoEssay(form, token, db) {
   const previous = form.get("previous");
-  const [images, current] = await Promise.all([uploadedImages(token), previous ? editableWriting(field(form, "slug", 90), token) : null,
+  const [images, current, staged] = await Promise.all([uploadedImages(token), previous ? editableWriting(field(form, "slug", 90), token) : null, draftImages(db),
     requireLayout("src/_includes/layouts/article.njk", "photos | photoSpreads", token)]);
-  const photos = photoSelection(form, images, current?.photos);
+  const privatePaths = new Set(staged.map(({path}) => path));
+  const photos = photoSelection(form, [...images,...privatePaths], current?.photos);
   const photoData = {question: field(form, "question", 300), photos, shareImage: photos[0].src, scripts: ["/assets/js/photo-essay.js"]};
   let publication;
   if (current) {
@@ -116,5 +119,7 @@ export async function savePhotoEssay(form, token) {
       publication.markdown = publicationSource(parsed.data, parsed.originalBody);
     }
   }
-  return {slug: publication.slug, sha: await submitPublication(publication, token)};
+  const upcoming = photos.filter(({src}) => privatePaths.has(src)).map(({src}) => src);
+  if (current?.data.status === "archived" && upcoming.length) throw new PublishError("Save this essay as a private draft or restore it before releasing new photographs.",409);
+  return {slug: publication.slug, sha: upcoming.length ? await releasePhotoWithImages(publication,upcoming,token,db) : await submitPublication(publication, token)};
 }

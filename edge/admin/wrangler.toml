@@ -9,6 +9,11 @@ keep_names = false
 [analytics]
 binding = "ANALYTICS_SQL"
 
+[[d1_databases]]
+binding = "EDITORIAL_DB"
+database_name = "ashtonmilton-editorial"
+database_id = "1d1c8068-a488-4545-874f-9e921ae564b4"
+
 [[ratelimits]]
 name = "ADMIN_LOGIN_LIMIT"
 namespace_id = "811017"
