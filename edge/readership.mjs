@@ -15,6 +15,7 @@ export async function recordReadership(req, env) {
   const response = (status) => new Response(null, {status, headers: {"Cache-Control": "no-store"}});
   if (new URL(req.url).host !== "ashtonmilton.net" || req.method !== "POST" || req.headers.get("Origin") !== "https://ashtonmilton.net") return response(403);
   if (env.READERSHIP_ENABLED !== "on" || !env.READERSHIP_EVENTS || !env.READERSHIP_LIMIT) return response(404);
+  if (req.headers.get("Sec-GPC") === "1" || req.headers.get("DNT") === "1") return response(204);
   if (!req.body || Number(req.headers.get("Content-Length")) > 768) return response(413);
   try {
     const limit = await env.READERSHIP_LIMIT.limit({key: req.headers.get("CF-Connecting-IP") || "unknown"});

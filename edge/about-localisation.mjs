@@ -54,7 +54,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === "/_readership") return recordReadership(request, env);
     const fallback = env.READERSHIP_ENABLED === "on" && env.READERSHIP_CONSENT_FALLBACK === "on";
-    const client = readershipConsentClient(request, url, fallback);
+    const client = readershipConsentClient(request, url, fallback, env.READERSHIP_UK_DEFAULT === "on");
     if (client) return client;
     const redirect = env.ABOUT_LOCALISATION === "on" && routeAbout(request);
     if (redirect) return redirect;

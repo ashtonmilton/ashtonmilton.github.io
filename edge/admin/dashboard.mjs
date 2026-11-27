@@ -193,12 +193,17 @@ async function contentEditor(req, env, url) {
     if (/^article:[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) return redirect(`/edit?post=${encodeURIComponent(id.slice(8))}`);
     const page = await openCopy(id, env.GITHUB_PUBLISH_TOKEN);
     const groups = new Map();
-    for (const [i, {label, value, group, compact}] of page.fields.entries()) {
+    const documentPage = ["research", "policy"].includes(id);
+    for (const [i, {label, value, group, compact, type}] of page.fields.entries()) {
+      const body = type.startsWith("document-"), references = type.startsWith("references-");
       const control = compact && value.length < 145 && !/[\r\n]/.test(value) ? `<input name="copy-${i}" value="${escape(value)}">` :
-        `<textarea name="copy-${i}" rows="${Math.min(7, Math.max(2, Math.ceil(value.length / 95)))}">${escape(value)}</textarea>`;
-      groups.set(group, (groups.get(group) || "") + `<label class="wide">${escape(label)}${control}</label>`);
+        `<textarea name="copy-${i}" rows="${Math.min(body || references ? 16 : 7, Math.max(2, value.split("\n").length + Math.ceil(value.length / 105)))}">${escape(value)}</textarea>`;
+      const tools = body ? `<div class="related-actions"><button type="button" data-copy-heading="##">Add Heading</button>${id === "research" ? '<button type="button" data-copy-heading="###">Add Subheading</button>' : ""}</div><small>Separate paragraphs with a blank line.</small>` : references ? "<small>Separate reference entries with a blank line.</small>" : "";
+      groups.set(group, (groups.get(group) || "") + `<div class="wide" ${body ? "data-copy-body" : ""}><label>${escape(label)}${control}</label>${tools}</div>`);
     }
-    const fields = [...groups].map(([group, controls]) => `<fieldset class="copy-group"><legend>${escape(group)}</legend><div class="form-fields">${controls}</div></fieldset>`).join("");
+    const fields = [...groups].sort(([a],[b]) => Number(a === "Search and Sharing") - Number(b === "Search and Sharing")).map(([group, controls]) =>
+      documentPage || group === "Search and Sharing" ? `<details class="copy-group"${group === "Page Header" || group === "Document Title and Details" ? " open" : ""}><summary>${escape(group)}</summary><div class="form-fields">${controls}</div></details>` :
+        `<fieldset class="copy-group"><legend>${escape(group)}</legend><div class="form-fields">${controls}</div></fieldset>`).join("");
     return editPage(`${notice}<p><a href="/content">Choose Another Page</a></p><form method="post" class="copy-editor"><input type="hidden" name="id" value="${escape(id)}"><input type="hidden" name="previous" value="${page.previous}">${fields}<label class="publish-confirm"><input type="checkbox" name="confirm" value="yes" required> I approve these changes for publication.</label><button type="submit">Publish Changes</button></form>`, 200, `Edit ${page.title}`);
   } catch (error) {
     if (upload && req.headers.get("Accept") === "application/json") return reply(JSON.stringify({error: error instanceof PublishError ? error.message : "GitHub did not confirm this upload."}), "application/json; charset=utf-8", error instanceof PublishError ? error.status : 502);
@@ -365,7 +370,7 @@ export default {
       <section><h2>Infrastructure</h2><dl><dt>HTTPS availability</dt><dd>${health.status === "fulfilled" ? "Public site responded successfully." : "Public site check failed."} Checked ${escape(checked)} UTC.</dd>
       <dt>Deployment and monitoring</dt><dd><a href="${workflow}">GitHub Actions</a></dd>
       <dt>DNS and security events</dt><dd><a href="https://dash.cloudflare.com/">Open Cloudflare</a></dd></dl></section>
-      <section id="readership"><h2>Readership</h2><p>Browser activity from consenting readers over the last 30 days. Counts may be sampled; they do not represent unique readers or time spent reading.</p>
+      <section id="readership"><h2>Readership</h2><p>Measured browser activity over the last 30 days. Basic readership statistics are on by default in the UK, with an opt-out; other readers and optional analytics require opt-in. Counts may be sampled and do not represent unique readers.</p>
       <p><small>Last checked ${escape(checked)} UTC.</small> <a href="/?readership=${Date.now()}#readership">Refresh Readership</a></p>
       ${Array.isArray(readerReport.value) ? `<div class="tables">${readerReport.value.map(readershipTable).join("")}</div>` : "<p>Browser activity reporting is not connected.</p>"}
       <p><a href="https://search.google.com/search-console/">Google Search Console</a> reports search queries from Google, rather than searches within Work.</p></section>

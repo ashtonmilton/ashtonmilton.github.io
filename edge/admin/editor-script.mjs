@@ -1,4 +1,18 @@
 function setupEditor() {
+  for (const block of document.querySelectorAll("[data-copy-body]")) {
+    const text = block.querySelector("textarea");
+    block.addEventListener("click", (event) => {
+      const mark = event.target.closest("[data-copy-heading]")?.dataset.copyHeading;
+      if (!mark) return;
+      const start = text.selectionStart, end = text.selectionEnd;
+      const heading = text.value.slice(start,end).trim().replace(/\s+/g, " ") || "New Heading";
+      const before = start && !text.value.slice(0,start).endsWith("\n\n") ? "\n\n" : "";
+      const prefix = `${before}${mark} `;
+      text.setRangeText(`${prefix}${heading}\n\n`,start,end);
+      text.focus();
+      text.setSelectionRange(start + prefix.length,start + prefix.length + heading.length);
+    });
+  }
   for (const fieldset of document.querySelectorAll("[data-related-editor]")) {
     fieldset.addEventListener("click", (event) => {
       const all = event.target.closest("[data-related-all]");

@@ -65,7 +65,7 @@ function copyContext(body) {
     const classes = (node) => node.attrs?.find(({name}) => name === "class")?.value.split(/\s+/) || [];
     const all = stack.flatMap(classes);
     const previous = headings.findLast(({start}) => start <= offset)?.stack.at(-1);
-    const group = sectionClasses.find(([key]) => all.includes(key))?.[1] || (previous && shortText(value(previous))) || "Page Content";
+    const group = sectionClasses.find(([key]) => all.includes(key))?.[1] || (previous && value(previous).trim()) || "Page Content";
     const hasTag = (test) => stack.findLast(({tagName}) => test(tagName));
     const heading = hasTag((tag) => /^h[1-6]$/.test(tag));
     if (stack.some((node) => has(node, "data-filter") || has(node, "data-empty-state") || has(node, "data-search-status")) ||
@@ -74,13 +74,91 @@ function copyContext(body) {
     const detail = detailClasses.find(([key]) => all.includes(key))?.[1];
     const label = type === "url" ? `${shortText(value(link || {})) || "Link"} Destination` :
       type === "alt" ? "Image Description" : detail || (
-        heading ? (all.includes("publication-hero") && heading.tagName === "h1" ? (heading.childNodes?.find((node) => node.tagName === "span") === stack.at(-1) ? "Given Name" : "Family Name") : heading.tagName === "h1" ? "Page Heading" : `Heading: ${shortText(value(heading))}`) :
-        link ? `Link Text: ${shortText(value(link) || text)}` : `Text: ${shortText(text)}`);
+        heading ? (all.includes("publication-hero") && heading.tagName === "h1" ? (heading.childNodes?.find((node) => node.tagName === "span") === stack.at(-1) ? "Given Name" : "Family Name") : heading.tagName === "h1" ? "Page Heading" : "Heading") :
+        link ? `Link Label: ${shortText(value(link) || text)}` : stack.some((node) => node.tagName === "p") ? "Paragraph" : "Text");
     return {label, group, compact: !!heading || !!link || !!detail || type !== "html"};
   };
 }
 
-export function copyFields(source, markdown) {
+function documentCopy(body, offset, fields, kind) {
+  const tree = parseFragment(body, {sourceCodeLocationInfo:true});
+  const find = (node, cls) => node.attrs?.some(({name,value}) => name === "class" && value.split(/\s+/).includes(cls)) ? node :
+    (node.childNodes || []).map((child) => find(child, cls)).find(Boolean);
+  const blocks = find(tree, "editorial-copy")?.childNodes.filter((node) => node.tagName) || [];
+  if (!blocks.length) return fields;
+  const start = (node) => node.sourceCodeLocation.startOffset;
+  const end = (node) => node.sourceCodeLocation.endOffset;
+  const inner = (node) => body.slice(node.sourceCodeLocation.startTag.endOffset, node.sourceCodeLocation.endTag.startOffset);
+  const text = (node) => decodeEntities(inner(node).replace(/<br\s*\/?>/gi, "\n"));
+  const plain = (node) => (node.childNodes || []).every((child) => child.nodeName === "#text" || child.tagName === "br");
+  let group = "Document Opening";
+  let refs = false;
+  let paragraphs = [];
+  const level = kind === "policy" ? 3 : 2;
+  const last = blocks.at(-1);
+  const add = (from, to, label, type, value, compact = false) =>
+    fields.push({offset:offset+from, raw:body.slice(from,to), label, type, value, group, compact});
+  const remove = (from, to) => {
+    for (let i = fields.length - 1; i >= 0; i--) if (fields[i].offset >= offset+from && fields[i].offset < offset+to) fields.splice(i,1);
+  };
+  function flush() {
+    if (!paragraphs.length) return;
+    const from = start(paragraphs[0]), to = end(paragraphs.at(-1));
+    remove(from,to);
+    add(from,to,refs ? "Reference Entries" : "Body Text", refs ? "references-p" : `document-${level}`, paragraphs.map(text).join("\n\n"));
+    paragraphs = [];
+  }
+  for (const node of blocks) {
+    const tag = node.tagName;
+    const disclosure = refs && kind === "policy" && node === last;
+    if (tag === "p" && plain(node) && !node.attrs.length && !disclosure) {
+      if (paragraphs.length && body.slice(end(paragraphs.at(-1)),start(node)).trim()) flush();
+      paragraphs.push(node);
+      continue;
+    }
+    flush();
+    if (/^h[23]$/.test(tag) && plain(node)) {
+      const anchor = node.attrs.find(({name}) => name === "id")?.value;
+      refs = ["references","literature"].includes(anchor);
+      group = refs ? "References" : text(node);
+      const {startTag,endTag} = node.sourceCodeLocation;
+      remove(start(node),end(node));
+      add(startTag.endOffset,endTag.startOffset,refs ? "References Heading" : tag === `h${level}` ? "Section Heading" : "Subheading","html",text(node),true);
+    } else if (tag === "ul" && refs && node.attrs.length === 1 && node.attrs[0].value === "reference-list") {
+      const entries = node.childNodes.filter((child) => child.tagName);
+      if (!entries.every((entry) => entry.tagName === "li" && !entry.attrs.length && plain(entry))) continue;
+      const {startTag,endTag} = node.sourceCodeLocation;
+      remove(start(node),end(node));
+      add(startTag.endOffset,endTag.startOffset,"Reference Entries","references-li",entries.map(text).join("\n\n"));
+    } else if (disclosure && tag === "p" && plain(node)) {
+      const {startTag,endTag} = node.sourceCodeLocation;
+      remove(start(node),end(node));
+      add(startTag.endOffset,endTag.startOffset,"Publication Note","html",text(node));
+    }
+  }
+  flush();
+  const lead = blocks.find((node) => node.attrs.some(({value}) => value === "document-lead"));
+  for (const field of fields) {
+    const position = field.offset - offset;
+    if (lead && position >= start(lead) && position < end(lead)) {
+      field.group = "Document Title and Details";
+      if (field.label === "Heading") field.label = "Document Title";
+      else if (/^Period:/.test(field.value)) field.label = "Period";
+      else if (/^Cases:/.test(field.value)) field.label = "Cases";
+      else if (/^Outcome:/.test(field.value)) field.label = "Outcome";
+      else if (field.label === "Paragraph") field.label = "Document Subtitle";
+    }
+  }
+  const rail = find(tree, "document-rail");
+  return fields.filter((field) => {
+    const position = field.offset - offset;
+    if (!rail || position < start(rail) || position >= end(rail)) return true;
+    field.group = "Contents Links";
+    return field.type !== "url";
+  });
+}
+
+export function copyFields(source, markdown, id) {
   const fields = [];
   const add = (offset, raw, label, type, value, group = "Page Content", compact = false) => fields.push({offset, raw, label, type, value, group, compact});
   const front = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(source);
@@ -132,7 +210,28 @@ export function copyFields(source, markdown) {
     end = token.index + token[0].length;
   }
   text(end, body.length);
-  return fields.sort((a, b) => a.offset - b.offset);
+  const result = id === "research" || id === "policy" ? documentCopy(body, bodyOffset, fields, id) : fields;
+  return result.sort((a, b) => a.offset - b.offset);
+}
+
+function renderDocument(input, type) {
+  const entries = input.trim().split(/\n[\t ]*\n+/).map((entry) => entry.trim());
+  const isList = type === "references-li";
+  const level = Number(type.at(-1));
+  const line = (value) => safeHtml(value).replace(/\n/g, "<br>");
+  const html = entries.map((entry) => {
+    if (!level) return isList ? `<li>${line(entry)}</li>` : `<p>${line(entry)}</p>`;
+    if (entry.split("\n").some((part) => /^#{1,6}\s/.test(part))) {
+      return entry.split("\n").map((part) => {
+        const heading = /^(#{2,3})\s+(\S.*)$/.exec(part);
+        if (!heading) return part ? `<p>${line(part)}</p>` : "";
+        const tag = Math.max(heading[1].length,level);
+        return `<h${tag}>${safeHtml(heading[2])}</h${tag}>`;
+      }).join("\n");
+    }
+    return `<p>${line(entry)}</p>`;
+  }).join("\n");
+  return isList ? `\n${html}\n` : html;
 }
 
 export function applyCopy(source, fields, submitted) {
@@ -142,11 +241,14 @@ export function applyCopy(source, fields, submitted) {
     if (typeof value !== "string") throw new PublishError("The form is incomplete. Open it again before saving.");
     const input = value.replace(/\r\n/g, "\n");
     if (input === field.value.replace(/\r\n/g, "\n")) continue;
-    if ((!input.trim() && field.type !== "tags") || input.length > Math.max(4000, field.value.length + 2000) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(input)) {
+    const block = /^(?:document-|references-)/.test(field.type);
+    if ((!input.trim() && field.type !== "tags") || input.length > Math.max(block ? 16000 : 4000, field.value.length + 2000) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(input)) {
       throw new PublishError("Keep each field non-empty and use text only.");
     }
     let replacement = safeHtml(input);
-    if (field.type === "json") {
+    if (block) {
+      replacement = renderDocument(input,field.type);
+    } else if (field.type === "json") {
       if (input.length > 500 || /[\r\n<>{}]/.test(input)) throw new PublishError("Keep metadata on one line and use plain text under 500 characters.");
       replacement = JSON.stringify(input);
     } else if (field.type === "url") {
@@ -177,7 +279,7 @@ export async function openCopy(id, token) {
   if (file.type !== "file" || file.encoding !== "base64" || file.size > byteLimit || !/^[a-f0-9]{40}$/.test(file.sha || "")) throw new PublishError("This file cannot be opened here.", 409);
   const source = new TextDecoder("utf-8", {fatal: true}).decode(Uint8Array.from(atob(file.content.replace(/\s/g, "")), (byte) => byte.charCodeAt(0)));
   if (page.markdown && /^dashboardEditable: true$/m.test(source.split(/^---$/m)[1] || "")) throw new PublishError("Use Edit Work for pieces created in this dashboard.", 409);
-  return {...page, previous: file.sha, source, fields: copyFields(source, page.markdown)};
+  return {...page, previous: file.sha, source, fields: copyFields(source, page.markdown, id)};
 }
 
 export async function saveCopy(id, token, form) {

@@ -3,6 +3,29 @@ import test from "node:test";
 import {readFileSync} from "node:fs";
 import {applyCopy, copyFields, openCopy, uploadFile} from "./content.mjs";
 
+for (const [id,file,anchor,first,reference] of [
+  ["research","research","research-question","Research Question","George, A. L."],
+  ["policy","policy-analysis","distribution","First, Distinguish Aggregate Performance from Distributional Outcomes","Benjamin, D."]
+]) {
+  test(`${id} opens as sections, body text and editable references without changing the template`, () => {
+    const source = readFileSync(new URL(`../../src/${file}.njk`,import.meta.url),"utf8");
+    const fields = copyFields(source,false,id);
+    const section = fields.findIndex(({label,group}) => label === "Body Text" && group === first);
+    const refs = fields.findIndex(({label,group}) => label === "Reference Entries" && group === "References");
+    assert.ok(section >= 0 && refs >= 0);
+    assert.ok(fields[refs].value.startsWith(reference));
+    assert.ok(!fields.some(({type,value}) => type === "url" && value === `#${anchor}`));
+    const form = new Map(fields.map(({value},i) => [`copy-${i}`,value]));
+    form.set(`copy-${section}`,fields[section].value + "\n\n## Added Section\n\nBody <text>.");
+    form.set(`copy-${refs}`,fields[refs].value + "\n\nA new reference.");
+    const result = applyCopy(source,fields,form);
+    assert.match(result,/<h[23]>Added Section<\/h[23]>\n<p>Body &lt;text&gt;\.<\/p>/);
+    assert.ok(result.includes(`id="${anchor}">${first}`));
+    assert.ok(result.includes('{% include "related-reading.njk" %}'));
+    assert.ok(copyFields(result,false,id).some(({label,value}) => label === "Section Heading" && value === "Added Section"));
+  });
+}
+
 test("Page editing groups appropriate fields and does not expose Work search messages", () => {
   const home = copyFields(readFileSync(new URL("../../src/index.njk", import.meta.url), "utf8"));
   assert.ok(home.some(({label,group}) => label === "Introduction" && group === "Homepage Header"));

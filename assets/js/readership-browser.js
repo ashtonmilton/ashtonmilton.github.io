@@ -1,17 +1,18 @@
-export function startReadership() {
+export function startReadership(defaultBasic = false) {
   const token = document.querySelector("meta[name='web-analytics-token']")?.content;
   const readership = document.querySelector("meta[name='readership-events']")?.content === "on";
   const controls = document.querySelector("#analytics-preference");
   if (!token && !readership) return;
-  if (navigator.globalPrivacyControl || navigator.doNotTrack === "1") return;
+  const privateSignal = navigator.globalPrivacyControl || navigator.doNotTrack === "1";
   if (document.documentElement.dataset.readershipBound) return;
   document.documentElement.dataset.readershipBound = "true";
   const key = readership ? "ashton_readership_preference_v1" : "ashton_analytics_preference";
   let preference;
   try { preference = localStorage.getItem(key); } catch { return; }
+  const basic = () => readership && !privateSignal && (preference === "allow" || (defaultBasic && preference !== "off"));
 
   function send(kind, path, detail) {
-    if (!readership || preference !== "allow") return;
+    if (!basic() || (kind === "search" && preference !== "allow")) return;
     return fetch("/_readership", {method: "POST", credentials: "omit", keepalive: true,
       headers: {"Content-Type": "application/json"}, body: JSON.stringify({kind, path, detail})}).then((response) => response.ok).catch(() => false);
   }
@@ -49,7 +50,7 @@ export function startReadership() {
         if (controls) controls.dataset.readershipStatus = accepted ? "accepted" : "unavailable";
       });
     }
-    if (!token || document.querySelector("#web-analytics-beacon")) return;
+    if (privateSignal || preference !== "allow" || !token || document.querySelector("#web-analytics-beacon")) return;
     const script = document.createElement("script");
     script.id = "web-analytics-beacon";
     script.src = "https://static.cloudflareinsights.com/beacon.min.js";
@@ -58,22 +59,29 @@ export function startReadership() {
     document.head.append(script);
   }
 
-  if (preference === "allow") start();
   if (!controls) return;
   controls.hidden = false;
   const status = controls.querySelector("[role=status]");
-  status.textContent = preference === "allow" ? "Analytics allowed on this browser." : "Analytics off on this browser.";
+  function updateControls() {
+    const active = !privateSignal && (basic() || preference === "allow");
+    controls.querySelector('[data-choice="off"]').hidden = !active;
+    controls.querySelector('[data-choice="allow"]').hidden = privateSignal || preference === "allow";
+    status.textContent = privateSignal ? "Analytics is off because of your browser privacy settings." :
+      preference === "allow" ? "Analytics is on for this browser." : basic() ? "Basic readership statistics are on." : "Analytics is off for this browser.";
+  }
+  updateControls();
+  if (basic() || (!privateSignal && preference === "allow")) start();
   controls.addEventListener("click", (event) => {
+    if (event.target.closest("[data-analytics-details]")) {
+      const details = document.querySelector("details#privacy");
+      if (details) details.open = true;
+    }
     const choice = event.target.closest("button[data-choice]")?.dataset.choice;
-    if (!choice) return;
+    if (!choice || privateSignal) return;
     try { localStorage.setItem(key, choice); } catch { return; }
     preference = choice;
-    if (choice === "off") {
-      // Reload so an already-running beacon is no longer present.
-      location.reload();
-    } else {
-      status.textContent = "Analytics allowed on this browser.";
-      start();
-    }
+    updateControls();
+    if (choice === "off" && document.querySelector("#web-analytics-beacon")) location.reload();
+    if (choice === "allow") start();
   });
 }

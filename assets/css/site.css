@@ -80,6 +80,8 @@ img { max-width: 100%; }
 .skip-link:focus { transform: none; }
 
 .site-header { background: var(--surface-deep); border-bottom: 1px solid var(--rule-soft); }
+.analytics-preference:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .8rem; padding-block: .45rem; font-size: .85rem; }
+.analytics-preference button { font: inherit; }
 .nav {
   width: min(calc(100% - 2 * var(--gutter)), var(--width));
   margin-inline: auto;
