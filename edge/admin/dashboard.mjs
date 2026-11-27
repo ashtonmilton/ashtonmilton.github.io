@@ -2,6 +2,7 @@ import { editableWriting, listWriting, preparePublication, publicationStatus, pu
 import { endSession, localLoginReady, loginInput, matchesPassword, startSession, validSession } from "./session.mjs";
 import { editablePages, openCopy, saveCopy, uploadFile } from "./content.mjs";
 import { readership } from "./readership.mjs";
+import {eligibleFeatured, featuredSettings, imageLimit, saveFeatured, savePhotoEssay, uploadedImages} from "./editorial.mjs";
 
 const origin = "https://ashtonmilton.net";
 const adminHost = "admin.ashtonmilton.net";
@@ -27,7 +28,7 @@ function reply(body, type, status = 200) {
 }
 
 async function request(url, options = {}) {
-  const response = await fetch(url, { ...options, redirect: "error", signal: AbortSignal.timeout(5500) });
+  const response = await fetch(url, { ...options, redirect: "manual", signal: AbortSignal.timeout(5500) });
   if (!response.ok) throw new Error("Upstream unavailable");
   return response;
 }
@@ -48,6 +49,56 @@ function loginPage(message = "", status = 200) {
 
 function editPage(body, status = 200, title = "Edit Work") {
   return reply(`<!doctype html><html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} | Ashton Milton</title><link rel="stylesheet" href="/style.css"><main><p><a href="/">Site Administration</a></p><h1>${escape(title)}</h1>${body}</main></html>`, "text/html; charset=utf-8", status);
+}
+
+const approved = '<label class="publish-confirm"><input type="checkbox" name="confirm" value="yes" required> I approve this for publication.</label>';
+const option = (value, label, selected) => `<option value="${escape(value)}"${value === selected ? " selected" : ""}>${escape(label)}</option>`;
+
+async function editorialPage(req, env, url) {
+  const photos = url.pathname === "/photos";
+  const title = photos ? "Photo Essay" : "Featured Work";
+  if (!env.GITHUB_PUBLISH_TOKEN) return editPage("<p>Publishing is not configured.</p>", 503, title);
+  if (req.method === "POST" && req.headers.get("Origin") !== url.origin) return reply("Same-origin submission required.", "text/plain; charset=utf-8", 403);
+  try {
+    if (req.method === "POST") {
+      const form = await readForm(req);
+      if (photos) {
+        const {slug, sha} = await savePhotoEssay(form, env.GITHUB_PUBLISH_TOKEN);
+        return redirect(`/?commit=${sha}&post=${encodeURIComponent(slug)}`);
+      }
+      const sha = await saveFeatured(form, env.GITHUB_PUBLISH_TOKEN);
+      return redirect(`/featured?commit=${sha}`);
+    }
+    if (req.method !== "GET") return reply("Method not allowed", "text/plain; charset=utf-8", 405);
+    if (!photos) {
+      const [selection, candidates] = await Promise.all([featuredSettings(env.GITHUB_PUBLISH_TOKEN), eligibleFeatured(env.GITHUB_PUBLISH_TOKEN)]);
+      const sha = url.searchParams.get("commit") || "";
+      const notice = /^[a-f0-9]{40}$/.test(sha) ? `<p class="publish-status">${escape(await publicationStatus(sha) || "Featured work saved. Check GitHub Actions for deployment status.")}</p>` : "";
+      const choices = selection.values.map((selected, i) => `<label>${["Lead Feature", "Second Feature", "Third Feature"][i]}<select name="slot-${i + 1}">${candidates.map((value) => option(value, value === "/policy-analysis/" ? "Policy Analysis" : value.split("/")[2].replace(/-/g, " "), selected)).join("")}</select></label>`).join("");
+      return editPage(`${notice}<form method="post"><input type="hidden" name="previous" value="${escape(selection.sha)}"><div class="form-fields">${choices}</div>${approved}<button type="submit">Publish Featured Work</button></form>`, 200, title);
+    }
+    const post = url.searchParams.get("post");
+    const [images, article] = await Promise.all([uploadedImages(env.GITHUB_PUBLISH_TOKEN), post ? editableWriting(post, env.GITHUB_PUBLISH_TOKEN) : null]);
+    if (article && !Array.isArray(article.data.photos)) throw new PublishError("This piece does not use the photo essay editor.", 409);
+    const data = article?.data || {};
+    if (!images.length) return editPage('<p><a href="/upload">Upload at least two public images</a> before creating a photo essay.</p>', 200, title);
+    const rows = Array.from({length: imageLimit}, (_, i) => {
+      const n = i + 1, item = data.photos?.[i] || {};
+      return `<details${n <= 2 || item.src ? " open" : ""}><summary>Photograph ${n}</summary><div class="form-fields">
+        <label class="wide">Image<select name="photo-${n}">${option("", "No Image", item.src || "")}${images.map((image) => option(image, image.split("/").at(-1), item.src)).join("")}</select></label>
+        <label>Width in Pixels<input type="number" min="1" max="20000" name="width-${n}" value="${escape(item.width || "")}"></label><label>Height in Pixels<input type="number" min="1" max="20000" name="height-${n}" value="${escape(item.height || "")}"></label>
+        <label class="wide">Location<input name="place-${n}" maxlength="100" value="${escape(item.place || "")}"></label><label class="wide">Image Description<input name="alt-${n}" maxlength="350" value="${escape(item.alt || "")}"></label><label class="wide">Caption<input name="caption-${n}" maxlength="1000" value="${escape(item.caption || "")}"></label></div></details>`;
+    }).join("");
+    if (article) {
+      if (!data.photos.every((photo) => images.includes(photo.src))) throw new PublishError("One of this essay’s public images is missing. Restore it before editing.", 409);
+    }
+    const identityFields = article ? `<input type="hidden" name="slug" value="${escape(article.slug)}"><input type="hidden" name="previous" value="${escape(article.previous)}">` : '<label>Publication Date<input type="date" name="date"></label><label>Tags<input name="tags" maxlength="300"></label>';
+    return editPage(`<p><a href="/upload">Upload Public Images</a></p><form method="post">${identityFields}<div class="form-fields">
+      <label class="wide">Title<input name="title" required maxlength="120" value="${escape(data.title || "")}"></label><label class="wide">Archive Summary<input name="summary" required maxlength="300" value="${escape(data.summary || "")}"></label>
+      <label class="wide">Opening Question<input name="question" required maxlength="300" value="${escape(data.question || "")}"></label><label class="wide">Introduction<textarea name="writing" rows="5">${escape(article?.writing || "")}</textarea></label></div>${rows}${approved}<button type="submit">Publish Photo Essay</button></form>`, 200, title);
+  } catch (error) {
+    return editPage(`<p role="alert">${escape(error instanceof PublishError ? error.message : "GitHub did not confirm this request. Check the repository before submitting again.")}</p><p><a href="${escape(url.pathname + url.search)}">Return to ${escape(title)}</a></p>`, error instanceof PublishError ? error.status : 502, title);
+  }
 }
 
 async function contentEditor(req, env, url) {
@@ -77,9 +128,9 @@ async function contentEditor(req, env, url) {
     }
     const id = url.searchParams.get("page");
     if (!id) {
-      const posts = await listWriting(env.GITHUB_PUBLISH_TOKEN);
+      const posts = await listWriting(env.GITHUB_PUBLISH_TOKEN).catch((error) => error instanceof PublishError ? error : new PublishError("The work archive could not be loaded.", 502));
       const links = (rows) => rows.map(([key, label]) => `<li><a href="/content?page=${encodeURIComponent(key)}">${escape(label)}</a></li>`).join("");
-      return editPage(`<h2>Main Pages</h2><ul>${links(editablePages)}</ul><h2>Existing Work</h2><ul>${links(posts.map((slug) => [`article:${slug}`, slug.replace(/-/g, " ")]))}</ul><p><a href="/edit">Edit a Piece Created in This Dashboard</a></p>`, 200, title);
+      return editPage(`<h2>Main Pages</h2><ul>${links(editablePages)}</ul><h2>Existing Work</h2>${Array.isArray(posts) ? `<ul>${links(posts.map((slug) => [`article:${slug}`, slug.replace(/-/g, " ")]))}</ul>` : `<p role="alert">${escape(posts.message)}</p>`}<p><a href="/edit">Edit a Piece Created in This Dashboard</a></p>`, 200, title);
     }
     const page = await openCopy(id, env.GITHUB_PUBLISH_TOKEN);
     const fields = page.fields.map(({label, value}, i) => `<label class="wide">${escape(({metaTitle:"Search Title", description:"Search Description", summary:"Archive Summary", title:"Title", question:"Opening Question"})[label] || label)} ${label === "Page Copy" ? i + 1 : ""}<textarea name="copy-${i}" rows="${Math.min(7, Math.max(2, Math.ceil(value.length / 95)))}">${escape(value)}</textarea></label>`).join("");
@@ -116,6 +167,14 @@ async function traffic(env) {
   const data = await response.json();
   if (data.errors?.length) throw new Error("Edge analytics unavailable");
   return data.data?.viewer?.zones?.[0] ?? null;
+}
+
+async function existingTraffic(env) {
+  if (typeof env.ANALYTICS_SQL?.query !== "function") return null;
+  const {data} = await env.ANALYTICS_SQL.query({query: `SELECT toDate(timestamp) AS label, COUNT(*) AS total FROM events.httpRequests
+    WHERE timestamp >= NOW() - INTERVAL '7' DAY AND clientRequestHttpHost = 'ashtonmilton.net'
+    GROUP BY label ORDER BY label ASC LIMIT 8`});
+  return Array.isArray(data) ? data : null;
 }
 
 function table(title, key, rows, dimension) {
@@ -168,6 +227,7 @@ export default {
       }
     }
     if (url.pathname === "/content" || url.pathname === "/upload") return contentEditor(req, env, url);
+    if (url.pathname === "/featured" || url.pathname === "/photos") return editorialPage(req, env, url);
     if (req.method === "POST" && (url.pathname === "/publish" || url.pathname === "/edit")) {
       if (req.headers.get("Origin") !== url.origin) return reply("Same-origin submission required.", "text/plain; charset=utf-8", 403);
       if (!env.GITHUB_PUBLISH_TOKEN) return reply("Publishing is not configured.", "text/plain; charset=utf-8", 503);
@@ -197,6 +257,7 @@ export default {
           return editPage(`<p>Work created here can be edited. Older pieces retain their original format.</p><ul>${names.map((name) => `<li><a href="/edit?post=${name}">${escape(name.replace(/-/g, " "))}</a></li>`).join("")}</ul>`);
         }
         const item = await editableWriting(slug, env.GITHUB_PUBLISH_TOKEN);
+        if (Array.isArray(item.data.photos)) return redirect(`/photos?post=${encodeURIComponent(slug)}`);
         return editPage(`<form method="post" action="/edit"><input type="hidden" name="slug" value="${escape(item.slug)}"><input type="hidden" name="previous" value="${escape(item.previous)}">
           <div class="form-fields"><label class="wide">Title<input name="title" required maxlength="120" value="${escape(item.data.title)}"></label>
           <label class="wide">Summary<input name="summary" required maxlength="300" value="${escape(item.data.summary)}"></label>
@@ -212,12 +273,12 @@ export default {
     const commit = url.searchParams.get("commit") || "";
     const post = url.searchParams.get("post") || "";
     const receipt = /^[a-f0-9]{40}$/.test(commit) && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(post);
-    const [health, catalogue, stats, deployment, readerReport] = await Promise.allSettled([
+    const [health, catalogue, stats, deployment, readerReport, historic] = await Promise.allSettled([
       request(origin + "/?source=admin-health", {method: "HEAD"}),
       request(origin + "/catalogue.json").then((response) => response.json()),
       traffic(env),
       receipt ? publicationStatus(commit) : null,
-      readership(env)
+      readership(env), existingTraffic(env)
     ]);
     const items = catalogue.status === "fulfilled" && Array.isArray(catalogue.value) ? catalogue.value : null;
     const statsData = stats.status === "fulfilled" ? stats.value : null;
@@ -228,7 +289,7 @@ export default {
       <section><h2>Publish Work</h2>
       ${receipt ? `<div class="publish-status"><p>${escape(deployment.value || "Submission recorded. Check GitHub Actions for deployment status.")}</p>
       <p><a href="https://github.com/ashtonmilton/ashtonmilton.github.io/commit/${commit}">View Commit</a> · <a href="${origin}/writing/${post}/">Open Public URL</a> · <a href="${workflow}">Deployment Runs</a></p></div>` : ""}
-      ${env.GITHUB_PUBLISH_TOKEN ? '<p><a href="/edit">Edit Work</a> · <a href="/content">Edit Site Copy</a> · <a href="/upload">Upload a Public File</a></p>' + publishingForm() : "<p>Publishing is unavailable until the repository connection is configured.</p>"}</section>
+      ${env.GITHUB_PUBLISH_TOKEN ? '<nav aria-label="Editorial tools"><p><a href="/content">Edit Site Copy</a> · <a href="/edit">Edit Work</a> · <a href="/featured">Featured Work</a> · <a href="/photos">New Photo Essay</a> · <a href="/upload">Upload a Public File</a></p></nav>' + publishingForm() : "<p>Publishing is unavailable until the repository connection is configured.</p>"}</section>
       <section><h2>Infrastructure</h2><dl><dt>HTTPS availability</dt><dd>${health.status === "fulfilled" ? "Public site responded successfully." : "Public site check failed."} Checked ${escape(checked)} UTC.</dd>
       <dt>Deployment and monitoring</dt><dd><a href="${workflow}">GitHub Actions</a></dd>
       <dt>DNS and security events</dt><dd><a href="https://dash.cloudflare.com/">Open Cloudflare</a></dd></dl></section>
@@ -237,7 +298,7 @@ export default {
       <p><a href="https://search.google.com/search-console/">Google Search Console</a> reports search queries from Google, rather than searches within Work.</p></section>
       <section><h2>Edge Traffic</h2><p>Cloudflare edge requests, last seven days plus today (UTC). Counts can be sampled and include bots. They are not unique people or browser page views.</p>
       ${statsData ? `<div class="tables">${table("Daily Traffic", "Day", statsData.time, "date")}${table("Writing Requests", "Path", statsData.paths, "clientRequestPath")}${table("Countries", "Country", statsData.countries, "clientCountryName")}</div>`
-        : "<p>Edge analytics unavailable. Check the zone permissions and dataset in Cloudflare.</p>"}
+        : Array.isArray(historic.value) ? readershipTable({title: "Daily Requests", rows: historic.value}) : "<p>Edge analytics unavailable for this account or period.</p>"}
       <p><a href="https://dash.cloudflare.com/">Open Cloudflare Web Analytics</a> for browser readership and performance, once enabled.</p></section>
       <section><h2>Downloadable Publications</h2>${items ? items.length ? "<ul>" + items.map((item) => `<li>${escape(item.title)} · ${escape(item.type)} · ${escape(item.version)}</li>`).join("") + "</ul>" :
         "<p>No downloadable publications have been released.</p>" : "<p>The public catalogue could not be checked.</p>"}</section>

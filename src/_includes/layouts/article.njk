@@ -23,6 +23,14 @@ navKey: writing
     <div class="essay-content{% if question %} folio{% endif %}">
 {% if question %}<nav class="folio-controls" aria-label="Photo essay spreads" hidden><button type="button">← Previous</button><span aria-live="polite"></span><button type="button">Next →</button></nav>{% endif %}
 {{ content | safe }}
+{% if photos %}
+{% for photo in photos %}
+<div class="folio-leaf"><div class="spread single"><figure>
+  <img src="{{ photo.src | escape }}" width="{{ photo.width }}" height="{{ photo.height }}" alt="{{ photo.alt | escape }}" data-gallery-photo decoding="async"{% if not loop.first %} loading="lazy"{% else %} fetchpriority="high"{% endif %}>
+  <figcaption>{% if photo.place %}<strong>{{ photo.place | escape }}</strong> {% endif %}{{ photo.caption | escape }}</figcaption>
+</figure></div></div>
+{% endfor %}
+{% endif %}
     </div>
     {% include "related-reading.njk" %}
     <div class="article-end"><a class="text-link" href="/writing/">Back to Work</a></div>

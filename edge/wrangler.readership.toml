@@ -7,7 +7,7 @@ preview_urls = false
 [vars]
 ABOUT_LOCALISATION = "on"
 SECURITY_HEADERS = "on"
-READERSHIP_ENABLED = "off"
+READERSHIP_ENABLED = "on"
 
 [[analytics_engine_datasets]]
 binding = "READERSHIP_EVENTS"

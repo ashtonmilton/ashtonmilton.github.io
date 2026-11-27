@@ -73,11 +73,14 @@ function base64(text) {
 }
 
 export async function preparePublication(request, now = new Date()) {
-  const form = await readForm(request);
+  return publicationFromForm(await readForm(request), now);
+}
+
+export async function publicationFromForm(form, now = new Date(), photoData = null) {
   const title = field(form, "title", 120);
   const summary = field(form, "summary", 300);
   const type = field(form, "type", 20);
-  const category = categories.get(type);
+  const category = photoData ? "Photo Essays" : categories.get(type);
   if (!category) throw new PublishError("Select a work type.");
   if (form.get("confirm") !== "yes") throw new PublishError("Confirm that this work may be published.");
   const slug = field(form, "slug", 90, false) || title.toLowerCase().normalize("NFKD")
@@ -101,18 +104,18 @@ export async function preparePublication(request, now = new Date()) {
     if (file.size > maxWritingBytes) throw new PublishError("The file is larger than 100 KiB.", 413);
     writing = (await file.text()).trim();
   }
-  if (!writing || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffd]/.test(writing)) {
+  if ((!writing && !photoData) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffd]/.test(writing)) {
     throw new PublishError("Provide UTF-8 text or Markdown for the piece.");
   }
   if (encoder.encode(writing).length > maxWritingBytes) throw new PublishError("The writing is larger than 100 KiB.", 413);
   if (/^---\s*(?:\r?\n|$)/.test(writing)) throw new PublishError("Remove any front matter; the form supplies it.");
   const words = writing.split(/\s+/).length;
-  const readingTime = type === "note"
+  const readingTime = photoData ? `${photoData.photos.length} photographs` : type === "note"
     ? new Intl.DateTimeFormat("en-GB", {dateStyle: "long", timeZone: "UTC"}).format(new Date(date))
     : `${Math.max(1, Math.ceil(words / 220))}-minute read`;
   const metadata = {layout: "layouts/article.njk", templateEngineOverride: "md", dashboardEditable: true,
     permalink: `/writing/${slug}/`, title, description: summary, summary, category, tags,
-    date, lastmod: today, status: "published", readingTime};
+    date, lastmod: today, status: "published", readingTime, ...(photoData || {})};
   // No raw HTML or externally embedded images. Markdown links and headings still work.
   const safeBody = safeWriting(writing);
   const frontmatter = Object.entries(metadata).map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join("\n");
@@ -129,7 +132,7 @@ export async function submitPublication(publication, token) {
       headers: {"Authorization": `Bearer ${token}`, "Accept": "application/vnd.github+json",
         "Content-Type": "application/json", "User-Agent": "AshtonMilton-Publisher"},
       body: JSON.stringify({branch: "main", message: `${previous ? "Revise" : "Publish"}: ${title}`, content: base64(markdown), ...(previous ? {sha: previous} : {})}),
-      redirect: "error", signal: AbortSignal.timeout(10000)
+      redirect: "manual", signal: AbortSignal.timeout(10000)
     });
   } catch {
     throw new PublishError("Could not confirm submission. Check GitHub Actions or the commit history before retrying.", 502);
@@ -147,13 +150,18 @@ export async function submitPublication(publication, token) {
 }
 
 async function githubContents(path, token) {
-  const response = await fetch(`${api}/contents/src/writing/essays${path}?ref=main`, {
-    headers: {"Authorization": `Bearer ${token}`, "Accept": "application/vnd.github+json", "User-Agent": "AshtonMilton-Publisher"},
-    redirect: "error", signal: AbortSignal.timeout(5500)
-  });
+  let response;
+  try {
+    response = await fetch(`${api}/contents/src/writing/essays${path}?ref=main`, {
+      headers: {"Authorization": `Bearer ${token}`, "Accept": "application/vnd.github+json", "User-Agent": "AshtonMilton-Publisher"},
+      redirect: "manual", signal: AbortSignal.timeout(5500)
+    });
+  } catch { throw new PublishError("GitHub did not respond when loading the work archive. Try opening the editor again.", 502); }
+  if (response.status === 401 || response.status === 403) throw new PublishError(`GitHub denied access to the work archive (${response.status}). Check the publishing token’s expiry and repository access.`, 502);
   if (response.status === 404) throw new PublishError("Work not found.", 404);
   if (!response.ok) throw new PublishError("The repository could not be read.", 502);
-  return response.json();
+  try { return await response.json(); }
+  catch { throw new PublishError("GitHub returned an unreadable archive response.", 502); }
 }
 
 export async function listWriting(token) {
@@ -180,6 +188,15 @@ export async function editableWriting(slug, token) {
   return {slug, previous: file.sha, data, writing: match[2].trim()};
 }
 
+export function revisePhotoMetadata(current, update, intro, now = new Date()) {
+  if (current.data.category !== "Photo Essays" || !Array.isArray(current.data.photos)) throw new PublishError("This photo essay uses a different layout.", 409);
+  if (encoder.encode(intro).length > maxWritingBytes) throw new PublishError("The introduction is too long.", 413);
+  const parts = Object.fromEntries(formatter.formatToParts(now).map(({type, value}) => [type, value]));
+  const data = {...current.data, ...update, lastmod: `${parts.year}-${parts.month}-${parts.day}`, readingTime: `${update.photos.length} photographs`};
+  const frontmatter = Object.entries(data).map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join("\n");
+  return {slug: current.slug, title: data.title, previous: current.previous, markdown: `---\n${frontmatter}\n---\n\n${safeWriting(intro)}\n`};
+}
+
 export async function reviseWriting(request, token, now = new Date()) {
   const form = await readForm(request);
   const slug = field(form, "slug", 90);
@@ -191,6 +208,7 @@ export async function reviseWriting(request, token, now = new Date()) {
     throw new PublishError("Provide UTF-8 text or Markdown no larger than 100 KiB.");
   }
   const current = await editableWriting(slug, token);
+  if (Array.isArray(current.data.photos)) throw new PublishError("Use the photo essay editor to revise this piece.", 409);
   if (form.get("previous") !== current.previous) throw new PublishError("This piece changed after you opened it. Reopen it before trying again.", 409);
   const parts = Object.fromEntries(formatter.formatToParts(now).map(({type, value}) => [type, value]));
   const data = {...current.data, title, summary, description: summary, lastmod: `${parts.year}-${parts.month}-${parts.day}`};
@@ -204,7 +222,7 @@ export async function publicationStatus(sha) {
   try {
     const response = await fetch(`${api}/actions/workflows/deploy.yml/runs?head_sha=${sha}&per_page=1`,
       { headers: {"Accept": "application/vnd.github+json", "User-Agent": "AshtonMilton-Publisher"},
-        redirect: "error", signal: AbortSignal.timeout(4500) });
+        redirect: "manual", signal: AbortSignal.timeout(4500) });
     if (!response.ok) return null;
     const run = (await response.json()).workflow_runs?.find((item) => item.head_sha === sha);
     if (!run) return "Waiting for GitHub to start deployment.";

@@ -13,5 +13,5 @@ test("Optional readership accepts only coarse validated events and never stores 
   assert.equal((await recordReadership(req({...event, path: "/writing/?private=term"}), env)).status, 400);
   assert.equal((await recordReadership(req({...event, detail: "x".repeat(900)}), env)).status, 413);
   assert.equal((await recordReadership(req(event), env)).status, 204);
-  assert.deepEqual(writes, [{indexes: ["search"], blobs: ["search", "/writing/", "Education", "Unknown"], doubles: [1]}]);
+  assert.deepEqual(writes, [{indexes: ["search"], blobs: ["search", "/writing/", "Education", "Unknown", "Unknown", "Other or unknown", "en"], doubles: [1]}]);
 });

@@ -5,6 +5,9 @@ workers_dev = false
 preview_urls = false
 keep_vars = true
 
+[analytics]
+binding = "ANALYTICS_SQL"
+
 [[ratelimits]]
 name = "ADMIN_LOGIN_LIMIT"
 namespace_id = "811017"

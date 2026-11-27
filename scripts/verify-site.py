@@ -61,7 +61,7 @@ class Page(HTMLParser):
             self.ids.add(attrs["id"])
         if tag == "meta":
             self.meta[attrs.get("name", attrs.get("property"))] = attrs.get("content")
-        if tag == "img" and attrs.get("src", "").startswith("/assets/images/photo-essays/"):
+        if tag == "img" and (attrs.get("src", "").startswith("/assets/images/photo-essays/") or "data-gallery-photo" in attrs):
             self.photos.append(attrs)
         if tag == "link" and attrs.get("rel") == "canonical":
             self.canonicals.append(attrs["href"])
@@ -161,7 +161,11 @@ def main():
             require(people[0].get("sameAs", []) == SITE["sameAs"], f"Unexpected profile links: {url}")
             require(people[0].get("alternateName") == SITE["fullName"], f"Wrong full name: {url}")
         if url == "/":
-            require(len(page.feature_links) == 3 and page.feature_links[0] == "/policy-analysis/", "Expected a policy-led homepage with two supporting pieces.")
+            featured_source = OUTPUT.parent / "src" / "_data" / "homeFeatured.json"
+            expected = (json.loads(featured_source.read_text(encoding="utf-8")) if featured_source.is_file()
+                        else ["/policy-analysis/", "/writing/what-is-hukou/", "/writing/on-display/"])
+            require(len(expected) == len(set(expected)) == 3 and page.feature_links == expected,
+                    "Expected three distinct published homepage features in the editorial order.")
             require(any(item["@type"] == "WebSite" and item["name"] == SITE["name"] for item in page.graphs), "Missing homepage site-name schema.")
         if url in by_url:
             require(any(item["@type"] == "ProfilePage" and item["mainEntity"]["@id"] == PERSON and item["inLanguage"] == locale["lang"] for item in page.graphs), f"Missing or incorrect profile schema: {url}")
@@ -221,8 +225,9 @@ def main():
         require(xml_photos == {ORIGIN + img["src"] for img in pages[path].photos}, f"Sitemap photos differ from HTML: {path}")
         for img in pages[path].photos:
             require(int(img.get("width", "0")) > 0 and int(img.get("height", "0")) > 0 and bool(img.get("alt")), f"Missing photo dimensions or alt: {path}")
-            for candidate in img.get("srcset", "").split(","):
-                candidate_path = candidate.strip().split()[0] if candidate.strip() else ""
+            variants = [candidate.strip().split()[0] for candidate in img.get("srcset", "").split(",") if candidate.strip()]
+            require(bool(variants) or "data-gallery-photo" in img, f"Missing responsive photo source set: {path}")
+            for candidate_path in variants:
                 require(candidate_path.startswith("/assets/images/") and (OUTPUT / candidate_path[1:]).is_file(), f"Missing responsive image: {candidate_path}")
     index = json.loads((OUTPUT / "assets/search-index.json").read_text())
     require({row["url"] for row in index} == {url for url in pages if url.startswith("/writing/") and url != "/writing/"}, "Work search does not match the archive.")

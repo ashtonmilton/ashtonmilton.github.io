@@ -3,6 +3,14 @@ const topics = new Set(["Asia", "Cities and Infrastructure", "Education", "Migra
 const pagePath = /^\/(?:[a-z0-9-]+\/){0,4}$/;
 const filePath = /^\/(?:assets\/uploads|publications\/files)\/[a-z0-9._-]+$/i;
 
+function audience(req, path) {
+  const ua = (req.headers.get("User-Agent") || "").slice(0, 1024);
+  const device = !ua ? "Unknown" : /iPad|Tablet|Android(?!.*Mobile)/i.test(ua) ? "Tablet" : /Mobile|iPhone|iPod/i.test(ua) ? "Mobile" : "Desktop or other";
+  const browser = /Edg(?:A|iOS)?\//i.test(ua) ? "Edge" : /Firefox\/|FxiOS\//i.test(ua) ? "Firefox" : /Chrome\/|CriOS\//i.test(ua) ? "Chrome" : /Safari\//i.test(ua) ? "Safari" : "Other or unknown";
+  const lang = /^\/([a-z]{2,3})\/about\/$/.exec(path)?.[1] || "en";
+  return [device, browser, lang];
+}
+
 export async function recordReadership(req, env) {
   const response = (status) => new Response(null, {status, headers: {"Cache-Control": "no-store"}});
   if (new URL(req.url).host !== "ashtonmilton.net" || req.method !== "POST" || req.headers.get("Origin") !== "https://ashtonmilton.net") return response(403);
@@ -29,7 +37,7 @@ export async function recordReadership(req, env) {
       (kind === "search" && path === "/writing/" && topics.has(detail));
     if (!valid) return response(400);
     const country = /^[A-Z]{2}$/.test(req.cf?.country || "") ? req.cf.country : "Unknown";
-    env.READERSHIP_EVENTS.writeDataPoint({indexes: [kind], blobs: [kind, path, detail, country], doubles: [1]});
+    env.READERSHIP_EVENTS.writeDataPoint({indexes: [kind], blobs: [kind, path, detail, country, ...audience(req, path)], doubles: [1]});
     return response(204);
   } catch { return response(400); }
 }

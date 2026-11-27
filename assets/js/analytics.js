@@ -4,7 +4,7 @@
   const controls = document.querySelector("#analytics-preference");
   if (!token && !readership) return;
   if (navigator.globalPrivacyControl || navigator.doNotTrack === "1") return;
-  const key = "ashton_analytics_preference";
+  const key = readership ? "ashton_readership_preference_v1" : "ashton_analytics_preference";
   let preference;
   try { preference = localStorage.getItem(key); } catch { return; }
 

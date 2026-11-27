@@ -38,7 +38,7 @@ jobs:
       - name: Build site
         env:
           CLOUDFLARE_WEB_ANALYTICS_TOKEN: ${{ vars.CLOUDFLARE_WEB_ANALYTICS_TOKEN }}
-          READERSHIP_ENABLED: ${{ vars.READERSHIP_ENABLED }}
+          READERSHIP_ENABLED: ${{ vars.READERSHIP_ENABLED || 'on' }}
         run: pnpm run build
 
       - name: Verify public output

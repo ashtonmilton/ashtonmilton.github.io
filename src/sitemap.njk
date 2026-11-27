@@ -15,8 +15,8 @@ sitemap: false
     {% endfor %}
     <xhtml:link rel="alternate" hreflang="x-default" href="{{ site.url }}/about/" />
     {% endif %}
-    {% if photoFiles[item.url] %}
-    {% for photo in photoFiles[item.url] %}
+    {% if item.data.photos or photoFiles[item.url] %}
+    {% for photo in item.data.photos or photoFiles[item.url] %}
     <image:image><image:loc>{{ site.url }}{{ photo.src }}</image:loc></image:image>
     {% endfor %}
     {% endif %}

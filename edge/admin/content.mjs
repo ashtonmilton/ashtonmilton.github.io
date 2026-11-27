@@ -3,12 +3,15 @@ import {PublishError} from "./publishing.mjs";
 const fixed = new Map([
   ["home", ["Home", "src/index.njk"]], ["work", ["Work", "src/writing/index.njk"]],
   ["research", ["Research", "src/research.njk"]], ["policy", ["Policy Analysis", "src/policy-analysis.njk"]],
-  ["about", ["About", "src/about.njk"]], ["contact", ["Contact", "src/contact.njk"]]
+  ["about", ["About", "src/about.njk"]], ["contact", ["Contact", "src/contact.njk"]],
+  ["about-zh", ["About (Simplified Chinese)", "src/about-zh.njk"]], ["about-ja", ["About (Japanese)", "src/about-ja.njk"]],
+  ["about-th", ["About (Thai)", "src/about-th.njk"]], ["about-vi", ["About (Vietnamese)", "src/about-vi.njk"]]
 ]);
 const api = "https://api.github.com/repos/ashtonmilton/ashtonmilton.github.io/contents/";
 export const editablePages = [...fixed].map(([id, [title]]) => [id, title]);
 const validPost = /^article:([a-z0-9]+(?:-[a-z0-9]+)*)$/;
-const metadataKeys = new Set(["title", "metaTitle", "description", "summary", "question"]);
+const metadataKeys = new Set(["title", "metaTitle", "description", "summary", "question", "readingTime"]);
+const welcomeKeys = new Set(["eyebrow", "jump", "lede", "exitTitle", "exitDescription", "exitLink"]);
 const encoder = new TextEncoder();
 const byteLimit = 160 * 1024;
 
@@ -40,10 +43,20 @@ export function copyFields(source, markdown) {
   const front = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(source);
   const bodyOffset = front?.[0].length || 0;
   if (front) {
-    for (const line of front[1].matchAll(/^([A-Za-z]+): ("(?:[^"\\]|\\.)*")[ \t]*$/gm)) {
-      if (!metadataKeys.has(line[1])) continue;
-      try { add(front[0].indexOf(front[1]) + line.index + line[1].length + 2, line[2], line[1], "json", JSON.parse(line[2])); }
+    for (const line of front[1].matchAll(/^( *)([A-Za-z]+): ("(?:[^"\\]|\\.)*")[ \t]*$/gm)) {
+      const parent = [...front[1].slice(0, line.index).matchAll(/^([A-Za-z]+):/gm)].at(-1)?.[1];
+      if (!(line[1] ? (parent === "welcome" && welcomeKeys.has(line[2])) || (parent === "homeFeature" && metadataKeys.has(line[2])) : metadataKeys.has(line[2]))) continue;
+      try { add(front[0].indexOf(front[1]) + line.index + line[1].length + line[2].length + 2, line[3], line[2], "json", JSON.parse(line[3])); }
       catch { /* Leave non-JSON YAML scalars unchanged. */ }
+    }
+    const tags = /^tags: (\[[^\r\n]*\])[ \t]*$/m.exec(front[1]);
+    if (tags) {
+      try {
+        const list = JSON.parse(tags[1]);
+        if (Array.isArray(list) && list.every((item) => typeof item === "string")) {
+          add(front[0].indexOf(front[1]) + tags.index + 6, tags[1], "Tags, One per Line", "tags", list.join("\n"));
+        }
+      } catch { /* Leave other YAML tag formats unchanged. */ }
     }
   }
   const body = source.slice(bodyOffset);
@@ -68,7 +81,7 @@ export function copyFields(source, markdown) {
     end = token.index + token[0].length;
   }
   text(end, body.length);
-  return fields;
+  return fields.sort((a, b) => a.offset - b.offset);
 }
 
 export function applyCopy(source, fields, submitted) {
@@ -78,13 +91,17 @@ export function applyCopy(source, fields, submitted) {
     if (typeof value !== "string") throw new PublishError("The form is incomplete. Open it again before saving.");
     const input = value.replace(/\r\n/g, "\n");
     if (input === field.value.replace(/\r\n/g, "\n")) continue;
-    if (!input.trim() || input.length > Math.max(4000, field.value.length + 2000) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(input)) {
+    if ((!input.trim() && field.type !== "tags") || input.length > Math.max(4000, field.value.length + 2000) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(input)) {
       throw new PublishError("Keep each field non-empty and use text only.");
     }
     let replacement = safeHtml(input);
     if (field.type === "json") {
       if (input.length > 500 || /[\r\n<>{}]/.test(input)) throw new PublishError("Keep metadata on one line and use plain text under 500 characters.");
       replacement = JSON.stringify(input);
+    } else if (field.type === "tags") {
+      const tags = [...new Set(input.split("\n").map((tag) => tag.trim()).filter(Boolean))];
+      if (tags.length > 8 || tags.some((tag) => tag.length > 60 || /[<>{}]/.test(tag))) throw new PublishError("Use up to eight short tags, one per line.");
+      replacement = JSON.stringify(tags);
     } else if (field.type === "markdown") {
       // Preserve Markdown punctuation; do not introduce code, templates or embedded remote media.
       if (/^\s*(?:```|~~~|---\s*$)/m.test(input)) throw new PublishError("Edit the words without adding code blocks or metadata.");
@@ -101,7 +118,7 @@ const headers = (token) => ({Authorization: `Bearer ${token}`, Accept: "applicat
 
 export async function openCopy(id, token) {
   const page = resolvePage(id);
-  const response = await fetch(`${api}${page.path}?ref=main`, {headers: headers(token), redirect: "error", signal: AbortSignal.timeout(5500)});
+  const response = await fetch(`${api}${page.path}?ref=main`, {headers: headers(token), redirect: "manual", signal: AbortSignal.timeout(5500)});
   if (!response.ok) throw new PublishError("The source file could not be opened.", response.status === 404 ? 404 : 502);
   const file = await response.json();
   if (file.type !== "file" || file.encoding !== "base64" || file.size > byteLimit || !/^[a-f0-9]{40}$/.test(file.sha || "")) throw new PublishError("This file cannot be opened here.", 409);
@@ -116,7 +133,7 @@ export async function saveCopy(id, token, form) {
   if (form.get("previous") !== page.previous) throw new PublishError("This page changed after you opened it. Reopen it before trying again.", 409);
   const bytes = encoder.encode(applyCopy(page.source, page.fields, form));
   if (bytes.length > byteLimit) throw new PublishError("The updated page is too large.", 413);
-  const response = await fetch(api + page.path, {method: "PUT", headers: headers(token), redirect: "error", signal: AbortSignal.timeout(9000),
+  const response = await fetch(api + page.path, {method: "PUT", headers: headers(token), redirect: "manual", signal: AbortSignal.timeout(9000),
     body: JSON.stringify({branch: "main", message: `Edit website copy: ${page.title}`, sha: page.previous, content: base64(bytes)})});
   if (response.status === 409 || response.status === 422) throw new PublishError("GitHub declined the change. Reopen this page before trying again.", 409);
   if (response.status !== 200) throw new PublishError("GitHub did not accept the edit.", 502);
@@ -139,7 +156,7 @@ export async function uploadFile(token, form) {
     png: head.startsWith("\x89PNG\r\n\x1a\n"), webp: head.startsWith("RIFF") && head.slice(8) === "WEBP"};
   if (!formats[ext === "jpeg" ? "jpg" : ext]) throw new PublishError("The file contents do not match its extension.");
   const path = `/assets/uploads/${name}`;
-  const response = await fetch(api + path.slice(1), {method: "PUT", headers: headers(token), redirect: "error", signal: AbortSignal.timeout(12000),
+  const response = await fetch(api + path.slice(1), {method: "PUT", headers: headers(token), redirect: "manual", signal: AbortSignal.timeout(12000),
     body: JSON.stringify({branch: "main", message: `Upload public asset: ${name}`, content: base64(bytes)})});
   if (response.status === 409 || response.status === 422) throw new PublishError("Upload not accepted. Use a new filename; this form does not replace files.", 409);
   if (response.status !== 201) throw new PublishError("GitHub did not accept the upload.", 502);
